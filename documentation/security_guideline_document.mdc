@@ -1,0 +1,180 @@
+---
+description: Apply these rules when making changes to the project
+globs:
+alwaysApply: true
+---
+
+Update this rule if user requested changes to the project requirement, etc.
+# Implementation Plan for Streamlit Video-to-Scope-Summary App
+
+This plan is organized into phases, each with key tasks, deliverables, dependencies, and security considerations. Estimated timelines assume a single developer working part-time; adjust as needed.
+
+---
+
+## Phase 1: Environment & Project Setup (1–2 days)
+
+### Tasks
+• Initialize Git repo with `.gitignore`.  
+• Define folder structure (`app/`, `utils/`, `tests/`, `templates/`).  
+• Create and commit `requirements.txt` or `Pipfile` + lockfile.  
+• Configure `python-dotenv` and Streamlit secrets for API keys.  
+• Install and verify dependencies (`streamlit`, `openai`, `python-docx`, `pdfkit`, `google-api-python-client`, `ffmpeg`).
+
+### Deliverables
+• Base repo skeleton with dependency lockfile.  
+• `.env.example` showing required env vars (OPENAI_API_KEY, GOOGLE_SERVICE_ACCOUNT_JSON).
+
+### Security Considerations
+• Secure defaults: ensure secrets are never committed.  
+• Use least privilege: Google service account with limited scopes (readonly templates folder + write to target folder only).
+
+---
+
+## Phase 2: Google Drive Authentication & Config UI (1–2 days)
+
+### Tasks
+• Implement service‐account OAuth flow using `google-auth` and `google-api-python-client`.  
+• Build Streamlit sidebar inputs to accept:
+  - JSON service account credentials (via secrets).  
+  - Target Job folder ID.  
+  - Template file ID.  
+• Validate inputs server-side: ensure folder/file IDs exist and are accessible.  
+• Store validated config in `st.session_state`.
+
+### Deliverables
+• `utils/drive.py` with helper functions: `get_drive_service()`, `copy_template()`, `upload_file()`.  
+• Config UI in `app/main.py`.
+
+### Security Considerations
+• Fail securely on auth errors; show user‐friendly message and hide stack trace.  
+• Enforce least privilege for Google API scopes (e.g., `drive.file`, not full `drive`).
+
+---
+
+## Phase 3: File Upload & Validation (1 day)
+
+### Tasks
+• Use `st.file_uploader()` to accept `.mp4`, `.mp3` with max size 200 MB / 30 min check via `ffmpeg`.  
+• Perform client- and server-side validation (file type, size, duration).  
+• Show immediate warnings for invalid files.
+
+### Deliverables
+• File upload component in UI with progress indicator.  
+• `utils/validation.py` containing validation logic.
+
+### Security Considerations
+• Sanitize filenames; never trust user‐supplied names when saving locally.  
+• Limit memory usage by streaming large uploads to disk.
+
+---
+
+## Phase 4: Transcription Integration (2 days)
+
+### Tasks
+• Integrate OpenAI Whisper via API endpoint.  
+• Stream progress updates (`st.progress`) during transcription.  
+• Catch and handle API errors (rate limits, network).  
+• Parse returned text; store transcript in memory or temp file.
+
+### Deliverables
+• `utils/transcribe.py` with `transcribe_audio()` function.  
+• UI step showing transcript snippet and allowing user confirmation.
+
+### Security Considerations
+• Validate transcript output length before sending to subsequent calls.  
+• Mask API errors; log details to a secure file, not to console.
+
+---
+
+## Phase 5: Scope Extraction with GPT-4 (2 days)
+
+### Tasks
+• Prepare prompt template to extract a JSON array of scope items `{code, title, details}`.  
+• Call OpenAI ChatCompletion API with transcript chunking if needed.  
+• Validate returned JSON against schema (e.g., using `pydantic`).  
+• Display parsed items in a Streamlit data table for preview.
+
+### Deliverables
+• `utils/parse_scope.py` with `extract_scope_items()` and schema validation.  
+• Scope preview UI with edit/correction capability.
+
+### Security Considerations
+• Escape or sanitize any user edits to prevent template injection.  
+• Rate-limit calls; handle partial failures gracefully.
+
+---
+
+## Phase 6: Document Generation (2 days)
+
+### Tasks
+• Use `python-docx` to load blank template, replace placeholders or append a table of scope items.  
+• Generate PDF via `pdfkit` (requires `wkhtmltopdf`) or `reportlab`.  
+• Apply naming convention: `{JobName}_ScopeSummary_{YYYYMMDD}_v{version}.docx/pdf`.  
+• Offer “Download PDF” button and stream the file in Streamlit.
+
+### Deliverables
+• `utils/doc_generator.py` with `create_docx()` and `create_pdf()`.  
+• UI controls for versioning and download.
+
+### Security Considerations
+• Validate template integrity; reject unexpected content in placeholders.  
+• Secure temporary files: store in `tempfile.TemporaryDirectory` and delete after usage.
+
+---
+
+## Phase 7: Google Drive Save & Final UI (1 day)
+
+### Tasks
+• Copy and overwrite template in Drive job folder using helper in Phase 2.  
+• Upload both `.docx` and `.pdf`.  
+• Show links to uploaded files in UI.  
+• Implement retry logic and notify user on failures.
+
+### Deliverables
+• Complete end-to-end demo: upload → transcription → parsing → doc gen → Drive save.  
+• README with setup and usage instructions.
+
+### Security Considerations
+• Confirm upload scopes; do not expose or elevate permissions.  
+• Fail securely: if Drive upload fails, preserve local copy and inform user.
+
+---
+
+## Phase 8: Testing & Hardening (2 days)
+
+### Tasks
+• Write unit tests for utils (transcription, parsing, doc gen, Drive).  
+• Perform manual UI testing for edge cases (large files, malformed transcripts).  
+• Integrate linter (flake8) and security scanner (e.g., Bandit).  
+• Add CSP and security headers in Streamlit config if hosting behind a proxy.
+
+### Deliverables
+• Test suite with >=80% coverage.  
+• CI pipeline (GitHub Actions) triggering tests and SCA.
+
+### Security Considerations
+• Enforce code scanning in CI; block merges on high-severity findings.  
+• Remove any debug endpoints and verbose logs in production configuration.
+
+---
+
+## Phase 9: Documentation & Demo (1 day)
+
+### Tasks
+• Finalize `README.md` with architecture diagram and security overview.  
+• Record a screencast demo.  
+• Prepare a troubleshooting guide and FAQ.
+
+### Deliverables
+• Project documentation and demo assets.  
+• Onboarding instructions for future maintainers.
+
+---
+
+## Clarifications & Next Steps
+1. Confirm final cost code mapping JSON structure and location.  
+2. Decide whether to bundle `wkhtmltopdf` installer or require manual installation.  
+3. Choose preferred PDF library (`pdfkit` vs. `reportlab`) for final implementation.  
+4. Specify folder structure in Google Drive for job folders and templates.
+
+Please review this plan and share any feedback or additional requirements before we begin Phase 1.

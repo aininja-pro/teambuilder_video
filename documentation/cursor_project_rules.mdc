@@ -1,0 +1,119 @@
+---
+description: Apply these rules when making changes to the project
+globs:
+alwaysApply: true
+---
+
+Update this rule if user requested changes to the project requirement, etc.
+# Project Overview
+
+*   **Type:** Streamlit Application
+*   **Description:** A video-to-scope-summary tool that allows users to upload a video, transcribe it, extract scope items by cost codes (01–19), generate Word and PDF scope summary documents, and save them back to Google Drive.
+*   **Primary Goal:** Create a Streamlit app that processes user-uploaded videos into structured scope summaries and stores the results in Google Drive.
+
+## Project Structure
+
+### Framework-Specific Routing
+
+*   **Directory Rules:**
+    *   `Streamlit 1.x`: Single-entrypoint model. All UI and logic reside in `streamlit_app.py`. Use `st.sidebar` or `st.tabs` for navigation if needed.
+
+### Core Directories
+
+*   **Versioned Structure:**
+    *   `utils/`: Python modules for transcription (`whisper`), parsing (GPT-4), and file validation.
+    *   `services/`: Google Drive integration (OAuth, file copy, upload).
+    *   `templates/`: Blank Word template files (Scope-Summary.docx) and PDF assets.
+    *   `assets/`: Optional ffmpeg binaries or auxiliary scripts.
+
+### Key Files
+
+*   **Stack-Versioned Patterns:**
+    *   `streamlit_app.py`: Main application using Streamlit 1.x APIs (`st.file_uploader`, `st.progress`, `st.session_state`).
+    *   `requirements.txt`: Pinned dependencies matching tech-stack versions.
+    *   `utils/transcribe.py`: Implements OpenAI Whisper API calls with progress reporting.
+    *   `utils/parse_scope.py`: Constructs GPT-4 prompts, enforces JSON output for scope items.
+    *   `services/drive_integration.py`: Handles Google OAuth 2.0 flow, template copy, and uploads.
+    *   `templates/Scope-Summary.docx`: Configurable blank Word template stored in Drive.
+
+## Tech Stack Rules
+
+*   **Version Enforcement:**
+    *   `streamlit@1.24.1`: Use `st.cache_data` for caching; avoid deprecated functions.
+    *   `openai@0.27.0`: Whisper transcription endpoint v1; implement rate-limit backoff.
+    *   `python-docx@0.8.11`: Employ template placeholders; do not manipulate raw XML.
+    *   `pdfkit@1.0.0`: Ensure wkhtmltopdf is installed and configured via `pdfkit.configuration()`.
+    *   `google-api-python-client@2.94.0`: Use OAuth installed-app flow; persist credentials in `token.json`.
+    *   `ffmpeg@4.4`: Headless duration checks; do not transcode entire video for metadata.
+
+## PRD Compliance
+
+*   "max 200MB file size": Validate `st.file_uploader()` client-side and revalidate server-side.
+*   "max 30 minutes duration": Use ffmpeg to extract duration and reject files exceeding 30 minutes.
+*   "Use a blank \"Scope-Summary.docx\" template from Google Drive": Template ID must be entered in UI and persisted in `st.session_state`.
+
+## App Flow Integration
+
+*   **Streamlit UI Flow:**
+    1. User selects an MP4/MP3 file → validate size & duration → show upload progress.
+    2. Transcribe video via OpenAI Whisper → update progress bar.
+    3. Parse transcript with GPT-4 → generate JSON array of `{code, title, details}`.
+    4. Populate `Scope-Summary.docx` via python-docx → save both .docx and .pdf locally.
+    5. Authenticate with Google OAuth → copy template and upload generated files to Drive → progress indicator.
+    6. Render final summary table in UI → provide "Download PDF" and "Download DOCX" buttons.
+
+## Best Practices
+
+*   Streamlit
+    *   Use `st.cache_data` for expensive operations (transcription, parsing).
+    *   Leverage `st.session_state` for persisting Drive folder ID and template ID.
+    *   Structure UI into modular functions for readability and testing.
+*   OpenAI Whisper
+    *   Stream audio in chunks to reduce memory usage.
+    *   Implement exponential backoff retry on transient failures.
+    *   Display partial transcripts for a responsive UX.
+*   GPT-4 Parsing
+    *   Sanitize transcripts to remove non-text artifacts.
+    *   Use a strict system prompt enforcing JSON-only output.
+    *   Validate the JSON schema before document generation.
+*   python-docx
+    *   Use placeholder tags in the template for dynamic insertion.
+    *   Save intermediate .docx versions for debugging conversion errors.
+    *   Avoid complex nested tables to maintain compatibility.
+*   PDF Generation (pdfkit/reportlab)
+    *   Verify `wkhtmltopdf` path at startup; provide fallback to reportlab.
+    *   Configure high-resolution output for readability.
+    *   Log conversion errors with detailed stderr capture.
+*   Google API Python Client
+    *   Persist OAuth credentials in `token.json` and refresh automatically.
+    *   Use `drive_service.files().copy()` to duplicate templates before editing.
+    *   Implement exponential retry on HTTP 5xx errors.
+*   ffmpeg
+    *   Invoke with `-v error` to suppress extraneous logs.
+    *   Use direct metadata extraction (`ffprobe`) for duration.
+    *   Validate ffmpeg installation at startup and surface errors early.
+
+## Rules
+
+*   Derive folder/file patterns directly from the specified tech-stack versions.
+*   Maintain a single entrypoint `streamlit_app.py`; do not create multiple Streamlit page files.
+*   Pin all dependency versions in `requirements.txt`; avoid loose version specifiers (`>=`, `~=`).
+*   Do not mix synchronous and asynchronous calls within the Streamlit execution flow.
+*   Centralize error handling using `st.error(...)` and `st.expander(...)` consistently.
+
+## Rules Metrics
+
+Before starting the project development, create a metrics file in the root of the project called `cursor_metrics.md`.
+
+### Instructions:
+*   Each time a cursor rule is used as context, update `cursor_metrics.md`.
+*   Use the following format for `cursor_metrics.md`:
+
+# Rules Metrics
+
+## Usage
+The number of times rules is used as context
+
+*   rule-name.mdc: 5
+*   another-rule.mdc: 2
+*   ...other rules

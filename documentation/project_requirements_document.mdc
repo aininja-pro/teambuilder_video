@@ -1,0 +1,222 @@
+---
+description: Apply these rules when making changes to the project
+globs:
+alwaysApply: true
+---
+
+Update this rule if user requested changes to the project requirement, etc.
+# Project Requirements Document (PRD)
+
+## 1. Project Overview
+
+We are building a small, Streamlit-based Python app called **Video-to-Scope-Summary**. Estimators can drag and drop a single MP4 or MP3 job video, and the app will automatically transcribe the audio, extract key “scope items” organized by cost-code divisions (01–19), and produce both a Word and PDF “Scope Summary.” The finished documents are saved back into the proper Google Drive folder and offered for immediate download.
+
+This tool exists to eliminate manual transcription and formatting work, speed up job scoping, and ensure consistency across all estimates. Success means an end-to-end flow that, for a single file, reliably:
+
+1.  Validates video size/duration
+2.  Calls OpenAI Whisper for transcription
+3.  Prompts GPT-4 to parse scope items into JSON
+4.  Fills a Word template and generates a PDF
+5.  Saves both files to Google Drive (with correct naming)
+6.  Displays progress and handles errors gracefully
+
+## 2. In-Scope vs. Out-of-Scope
+
+### In-Scope (MVP Features)
+
+*   **Single-file Upload & Validation**
+
+    *   Drag-and-drop MP4/MP3 via `st.file_uploader()`
+    *   Client-side and server-side checks against 200 MB / 30 min limits
+
+*   **Transcription**
+
+    *   Use OpenAI Whisper API endpoint
+    *   Show a transcription progress bar
+
+*   **Scope-Item Extraction**
+
+    *   Send transcript + cost-code mapping to GPT-4
+    *   Receive JSON array `{ code, title, details }`
+
+*   **Document Generation**
+
+    *   Copy blank Word template from Drive (configured by file ID)
+    *   Populate with `python-docx` and generate PDF via `pdfkit`
+    *   Name files as `{JobFolderName}_ScopeSummary_{YYYYMMDD}_v{Version}.{ext}`
+
+*   **Google Drive Integration**
+
+    *   Authenticate via OAuth/service account
+    *   Save both DOCX and PDF to the job’s Drive folder
+
+*   **UI & Feedback**
+
+    *   Progress bars for each step (Upload → Transcribe → Parse → Generate → Save)
+    *   Preview parsed JSON in a table
+    *   Download buttons for DOCX and PDF
+    *   Error banners (`st.error`) + expandable logs (`st.expander`)
+
+*   **Session & Settings**
+
+    *   Prompt once for:
+
+        *   Target Google Drive folder ID
+        *   Blank template file ID
+
+    *   Store in `st.session_state` for subsequent runs
+
+*   **Configuration**
+
+    *   Use `.env` / environment variables for OpenAI and Google credentials
+    *   Minimal Streamlit theme (default look)
+
+### Out-of-Scope (Phase 2+)
+
+*   Bulk or batch processing of multiple videos
+*   Custom branding, fonts, or full CSS styling
+*   Local Whisper model hosting
+*   Multi-user authentication flows (beyond single service account)
+*   Detailed versioning UI or history view
+*   Deployment to cloud (e.g., Streamlit Cloud) or containerization
+
+## 3. User Flow
+
+On first launch, the user is prompted (in the sidebar or a settings panel) to paste in two Google Drive file IDs: one for the job folder and one for the blank “Scope-Summary.docx” template. These IDs are saved into `st.session_state` so the user won’t have to reenter them. The main screen remains focused on the file uploader, with the sidebar collapsed by default.
+
+Next, the estimator drags and drops a single MP4 or MP3 file. The app immediately checks its size and duration. If the file is over 200 MB or 30 minutes, it warns the user and lets them cancel or continue at their own risk. Once accepted, a progress bar kicks off the Whisper transcription. When the transcript returns, it’s saved in session state and displayed (briefly) before being sent to GPT-4 for parsing.
+
+While GPT-4 extracts scope items, the UI shows a “Parsing Scope Items” bar. The resulting JSON is displayed in a clean table so the user can verify codes, titles, and details. Then a “Generating Documents” bar appears as the app copies the Word template, fills in each cost-code section, and produces both a `.docx` and a `.pdf`. Finally, a “Saving to Drive” bar runs while the files upload back to the job folder. When complete, the user sees download buttons for both formats and a success banner confirming that the files are in Google Drive.
+
+## 4. Core Features
+
+*   **File Upload & Validation**
+
+    *   `st.file_uploader(accept_multiple_files=False)`
+    *   Check `uploaded.size` and (optionally via `ffmpeg.probe`) duration
+
+*   **Transcription Module**
+
+    *   Function `transcribe_with_whisper(file)` → calls `openai.Audio.transcribe()`
+    *   Progress bar feedback
+
+*   **Scope Extraction Module**
+
+    *   Function `parse_scope_items(transcript, mapping_json)` → calls GPT-4
+    *   Prompts must include cost-code mapping 01–19
+
+*   **Document Assembly**
+
+    *   Copy blank template via Drive API
+    *   Use `python-docx` to insert headings and paragraphs by cost-code
+    *   Use `pdfkit` (with `wkhtmltopdf`) or `reportlab` to create PDF
+
+*   **Drive Integration**
+
+    *   Authenticate with OAuth/service account (via `google-api-python-client`)
+    *   Copy & overwrite template, upload final files
+
+*   **UI Components**
+
+    *   Progress bars (`st.progress`) for each major step
+    *   Table preview (`st.dataframe`) of parsed JSON
+    *   Download buttons (`st.download_button`) for DOCX & PDF
+    *   Error banner (`st.error`) + log expander (`st.expander`)
+
+*   **Session & Settings Storage**
+
+    *   Store folder/template IDs, transcript, and parsed JSON in `st.session_state`
+
+*   **Naming Convention**
+
+    *   `{JobFolderName}_ScopeSummary_{YYYYMMDD}_v{Version}.{ext}`
+
+## 5. Tech Stack & Tools
+
+*   **Language & Framework**
+
+    *   Python 3.9+
+    *   Streamlit (UI)
+
+*   **AI & NLP**
+
+    *   OpenAI Whisper API (transcription)
+    *   OpenAI GPT-4 (scope-item parsing)
+
+*   **Document Libraries**
+
+    *   `python-docx` (Word)
+    *   `pdfkit` + `wkhtmltopdf` or `reportlab` (PDF)
+
+*   **Cloud APIs**
+
+    *   `google-api-python-client` (Drive operations)
+    *   `google-auth` / OAuth 2.0 (service account)
+
+*   **Utilities**
+
+    *   `ffmpeg` (optional duration check)
+    *   `python-dotenv` (.env config)
+
+*   **IDE / Plugins**
+
+    *   Cursor (AI-powered IDE suggestions)
+
+## 6. Non-Functional Requirements
+
+*   **Performance**
+
+    *   Warn above 200 MB or 30 min to protect Whisper API costs and latency
+    *   UI interactions (button clicks, table renders) should respond within 1 s
+
+*   **Security**
+
+    *   Store secrets in environment variables, never in code
+    *   Use least-privilege scopes for Google Drive (read/write only needed folders)
+
+*   **Reliability**
+
+    *   Handle API failures gracefully with retry logic (2–3 attempts with backoff)
+
+*   **Usability**
+
+    *   Default Streamlit theme, minimal controls
+    *   Clear progress bars and error messages
+    *   Expandable logs for debugging without overwhelming users
+
+## 7. Constraints & Assumptions
+
+*   **Whisper via OpenAI API** only—no local GPU infra for MVP.
+*   **Single service-account mode**—all actions run under one Google identity.
+*   Running **locally** on a laptop for demos; no cloud deployment configured.
+*   Cost-code mapping is provided as a hardcoded JSON object.
+*   PDF generation requires `wkhtmltopdf` installed in PATH (if using `pdfkit`).
+*   User has valid OpenAI API key and Google service account credentials in `.env`.
+
+## 8. Known Issues & Potential Pitfalls
+
+*   **API Rate Limits**
+
+    *   Whisper and GPT-4 have per-minute quotas. Mitigation: enforce size limits, add retries, show clear errors.
+
+*   **Large File Latency / Cost**
+
+    *   Thirty-minute clips can take many minutes and incur high token fees. Mitigation: warn users, let them split videos.
+
+*   **PDFKit Installation**
+
+    *   `wkhtmltopdf` may not be on user’s machine. Alternative: use `reportlab` or include installation instructions.
+
+*   **Drive Quotas & Permissions**
+
+    *   Service account must have write access to target folders. Mitigation: clear setup instructions, validate on startup.
+
+*   **ffmpeg Probe Failures**
+
+    *   If ffmpeg is missing or file is corrupted, duration check may fail. Mitigation: catch exceptions, fall back to size‐only check.
+
+*   **Session State Overflows**
+
+    *   Extremely large transcripts in session memory could slow down the app. Mitigation: clear session state after save or limit preview size.
+
+This PRD captures every requirement, flow step, tool choice, and assumption so that subsequent technical documents (Tech Stack, Frontend Guidelines, Backend Structure, App Flowcharts, etc.) can be generated without additional clarification.

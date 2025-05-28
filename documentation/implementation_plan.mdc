@@ -1,0 +1,91 @@
+---
+description: Apply these rules when making changes to the project
+globs:
+alwaysApply: true
+---
+
+Update this rule if user requested changes to the project requirement, etc.
+# Implementation plan
+
+## Phase 1: Environment Setup
+
+1. **Prevalidation**: Check if `streamlit_app.py` exists in the current directory; if so, skip initialization to avoid redundancy. (Prevalidation)
+2. **Install Python**: Ensure Python 3.11.4 is installed. (Tech Stack)
+3. **Validation**: Run `python --version` and confirm output is `Python 3.11.4`. (Tech Stack)
+4. **Install wkhtmltopdf**: Download and install wkhtmltopdf from https://wkhtmltopdf.org/downloads.html. (Tech Stack)
+5. **Install ffmpeg**: Install ffmpeg via system package manager (`brew install ffmpeg` on macOS or `choco install ffmpeg` on Windows). (Tech Stack)
+6. **Create project directory**: Run `mkdir scope_summary_app && cd scope_summary_app`. (Project Goal)
+7. **Create virtual environment**: Run `python -m venv venv`. (Tech Stack)
+8. **Activate virtual environment**: Run `source venv/bin/activate` on macOS/Linux or `venv\Scripts\activate` on Windows. (Tech Stack)
+9. **Create `.env` file**: In project root, create `.env` containing:
+   ```
+   OPENAI_API_KEY=
+   GOOGLE_SERVICE_ACCOUNT_JSON=
+   ```
+   (Configuration)
+10. **Create `requirements.txt`**: Populate with the exact packages:
+    ```txt
+    streamlit==1.24.0
+    openai==0.27.0
+    python-dotenv==1.0.0
+    python-docx==0.8.11
+    pdfkit==1.0.0
+    google-api-python-client==2.80.0
+    google-auth==2.24.1
+    ffmpeg-python==0.3.0
+    ```
+    (Tech Stack)
+11. **Install dependencies**: Run `pip install -r requirements.txt`. (Tech Stack)
+12. **Validation**: Run `pip freeze` and confirm versions match `requirements.txt`. (Tech Stack)
+13. **Initialize Git repo**: Run `git init`. (Environment Setup)
+14. **Create `.gitignore`**: Add:
+    ```gitignore
+    venv/
+    .env
+    .cursor/
+    ```
+    (Configuration)
+15. **Set up Cursor metrics**: Create directory `.cursor/` and inside it a file `cursor_metrics.md`. Refer to `cursor_project_rules.mdc` for metric guidelines. (Environment Setup)
+16. **Validation**: Confirm `.cursor/cursor_metrics.md` exists and `.cursor/` is listed in `.gitignore`. (Environment Setup)
+
+## Phase 2: Frontend Development (Streamlit UI)
+
+17. **Create main app file**: Create `/streamlit_app.py`. (Deliverables)
+18. **Import libraries**: In `streamlit_app.py`, import `streamlit`, `os`, `openai`, `dotenv`, `ffmpeg`, `python-docx`, `pdfkit`, and Google Drive client modules. (Tech Stack)
+19. **Load `.env`**: At top of `/streamlit_app.py`, call `dotenv.load_dotenv()`. (Configuration)
+20. **Session state setup**: Prompt on first run for `DRIVE_FOLDER_ID` and `TEMPLATE_FILE_ID` via `st.text_input()` and store in `st.session_state`. (Core Functionality & Features: Google Drive Integration)
+21. **File uploader UI**: Add `st.file_uploader('Upload MP4/MP3', type=['mp4','mp3'])`. (Core Functionality & Features: Video Input)
+22. **Validate file size and duration**: After upload, use `ffmpeg.probe()` to check size ≤200MB and duration ≤30min. Display `st.warning()` if limits exceeded. (Core Functionality & Features: Video Input)
+23. **Progress bars**: Add 5 `st.progress(0)` placeholders for each step (upload, transcription, parsing, generation, saving). (Core Functionality & Features: UI/UX)
+24. **Display parsed JSON**: Reserve `st.dataframe()` below parsing step to show extracted scope items. (Core Functionality & Features: UI/UX)
+25. **Download buttons**: After document generation, add `st.download_button()` for both DOCX and PDF. (Core Functionality & Features: UI/UX)
+26. **Error display**: Wrap each major call in `try/except`; on exception, call `st.error()` and `with st.expander('Details'):` to show traceback. (Core Functionality & Features: UI/UX)
+
+## Phase 3: Backend Development
+
+27. **Transcription function**: Create `/transcribe.py` with `def transcribe_video(file_bytes) -> str:` calling OpenAI Whisper API (`openai.Audio.transcriptions.create`). (Core Functionality & Features: Transcription)
+28. **Validation**: Write unit test in `/tests/test_transcribe.py` using a small MP3 and assert returned transcript is non-empty. (Core Functionality & Features: Transcription)
+29. **Scope parsing function**: In `/parse_scope.py`, implement `def parse_scope(transcript: str, mapping: dict) -> List[dict]:` calling OpenAI GPT-4 with custom JSON mapping. (Core Functionality & Features: Scope Parsing)
+30. **Validation**: Add `/tests/test_parse_scope.py` asserting output is a list of `{'code','title','details'}`. (Core Functionality & Features: Scope Parsing)
+31. **DOCX generation**: In `/doc_generator.py`, implement `def generate_docx(items: List[dict], out_path: str):` that copies blank template and populates via `python-docx`. (Core Functionality & Features: Document Generation)
+32. **PDF generation**: In `/doc_generator.py`, implement `def generate_pdf(docx_path: str, pdf_path: str):` using `pdfkit.from_file()`. (Core Functionality & Features: Document Generation)
+33. **Google Drive auth**: In `/drive_helper.py`, set up service account authentication loading JSON from `GOOGLE_SERVICE_ACCOUNT_JSON` and create Drive service using `google-api-python-client`. (Core Functionality & Features: Google Drive Integration)
+34. **Upload files**: In `/drive_helper.py`, add `def upload_file(path: str, folder_id: str) -> str:` that uploads to Drive and returns file URL. (Core Functionality & Features: Google Drive Integration)
+35. **Validation**: Create `/tests/test_drive_upload.py` using a dummy text file and assert returned URL matches expected pattern. (Core Functionality & Features: Google Drive Integration)
+
+## Phase 4: Integration
+
+36. **Integrate steps in `streamlit_app.py`**: Orchestrate calls to `transcribe_video`, `parse_scope`, `generate_docx`, `generate_pdf`, and `upload_file`, updating each progress bar. (Project Goal)
+37. **Display parsed items**: Pass the list from `parse_scope` to the `st.dataframe()` component. (UI/UX)
+38. **Show download links**: After upload, render hyperlinks to Drive URLs next to download buttons. (UI/UX)
+39. **End-to-end test**: Run `streamlit run streamlit_app.py`, upload a sample video, and verify transcript → parsed JSON → generated DOCX/PDF → Drive upload. (Deliverables)
+
+## Phase 5: Deployment & Documentation
+
+40. **Create README.md**: Document setup steps, `.env` variables, how to run `streamlit_app.py`, and demo instructions. (Deliverables)
+41. **Add start script**: In `package.json` or via `make run`, define `streamlit run streamlit_app.py`. (Deliverables)
+42. **Validation**: Follow README instructions on a fresh clone to ensure reproducibility. (Deliverables)
+43. **Commit changes**: Run `git add .` and `git commit -m "Initial implementation of scope summary app"`. (Environment Setup)
+44. **Optional - GitHub repo**: Create a new repo on GitHub and push with `git push origin main`. (Environment Setup)
+
+*Total steps: 44*

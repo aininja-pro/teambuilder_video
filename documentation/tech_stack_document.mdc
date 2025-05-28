@@ -1,0 +1,147 @@
+---
+description: Apply these rules when making changes to the project
+globs:
+alwaysApply: true
+---
+
+Update this rule if user requested changes to the project requirement, etc.
+# Tech Stack Document
+
+This document explains the tools and technologies chosen for the Video-to-Scope-Summary app in simple, everyday language. Each section covers a different layer of the project to show how everything fits together.
+
+## 1. Frontend Technologies
+
+We used Streamlit to build a clean, user-friendly interface that runs in the browser without extra setup.
+
+• **Streamlit**
+  - Provides components like `st.file_uploader` for drag-and-drop file uploads, progress bars, buttons, and tables.
+  - Allows hot-reload of your Python code, so changes show up instantly in the browser.
+
+• **st.session_state**
+  - A built-in way to remember user inputs (e.g., the transcript, parsed JSON, folder IDs) throughout the session.
+  - Keeps the interface responsive by avoiding repeated API calls for the same data.
+
+• **Streamlit's Default Theme**
+  - Minimal, out-of-the-box look so we can focus on functionality for the demo.
+  - Easy to customize later via a `config.toml` or small CSS snippets if branding becomes a priority.
+
+How this enhances the experience:
+- Users get immediate visual feedback at every step (upload, transcription, parsing, document generation, saving).
+- No need to install or configure a front-end framework—just run Python and Streamlit.
+
+## 2. Backend Technologies
+
+All the heavy lifting—transcribing audio, parsing scope items, creating Word/PDF files, and interacting with Google Drive—happens in Python.
+
+• **Python**
+  - The single language across frontend and backend keeps development simple.
+
+• **OpenAI Python SDK**
+  - `openai.Audio.transcribe()` for Whisper API calls.
+  - `openai.ChatCompletion.create()` for GPT-4 prompts.
+
+• **Scope Parsing Logic**
+  - We send the transcript and a cost-code mapping (01–19) to GPT-4 and receive a clean JSON array of `{ code, title, details }` objects.
+
+• **Document Libraries**
+  - **python-docx** to fill in a Word template copied from Google Drive.
+  - **pdfkit** (with an underlying `wkhtmltopdf` install) to turn the same content into a PDF.
+
+• **Google Drive Integration**
+  - **google-api-python-client** + **Google OAuth 2.0** for authenticating and copying/filling templates in Drive.
+
+• **ffmpeg** (optional helper)  
+  - Used server-side to inspect video duration before transcription, so we can enforce or warn about length limits.
+
+How these pieces work together:
+1. Streamlit uploads the file and stores it in `session_state`.
+2. We call Whisper to get a text transcript.
+3. We call GPT-4 to structure that transcript into scope items.
+4. We merge the JSON into a Word template (`python-docx`) and render a PDF (`pdfkit`).
+5. We push both files back to Google Drive via the Drive API.
+
+## 3. Infrastructure and Deployment
+
+For our initial proof-of-concept (MVP), everything runs locally on the developer’s machine.
+
+• **Local Python Environment**
+  - Use a virtual environment (`venv` or `conda`) and a `requirements.txt` to install:
+    - streamlit
+    - openai
+    - python-docx
+    - pdfkit
+    - google-api-python-client
+    - python-dotenv (for loading API keys from a `.env` file)
+    - ffmpeg (installed on the OS)
+
+• **Version Control**
+  - Git to track code changes and collaborate.
+
+• **Running the App**
+  - `streamlit run streamlit_app.py`
+  - Environment variables (`OPENAI_API_KEY`, Google credentials path) loaded via a `.env` file and `python-dotenv`.
+
+Why this setup works:
+- Zero external servers or cloud accounts needed for the demo.
+- Instant code edits and hot-reload guarantee fast iteration.
+- Offline-friendly if Wi-Fi is spotty in the demo room.
+
+*Future options:* Deploy to Streamlit Cloud, AWS, or any server with a CI/CD pipeline (e.g., GitHub Actions) for automatic testing and updates.
+
+## 4. Third-Party Integrations
+
+• **OpenAI Whisper API**
+  - Transcribes video/audio into text without managing GPUs.
+
+• **OpenAI GPT-4**
+  - Parses the transcript into structured scope items by cost-code.
+
+• **Google Drive API**
+  - Copies a blank `Scope-Summary.docx` template (by file ID) into the target folder.
+  - Uploads the filled-in `.docx` and generated PDF back into that folder.
+
+• **wkhtmltopdf/pdfkit**
+  - Renders HTML or Word-converted content into PDF format.
+
+Benefits:
+- Eliminates manual transcription and formatting steps.
+- Keeps all files organized in the user’s existing Drive folder structure.
+- Leverages reliable, maintained services to reduce our operational overhead.
+
+## 5. Security and Performance Considerations
+
+Security
+- **OAuth 2.0** for Google Drive ensures users grant only the permissions needed (read/write in specific folders).
+- **Environment variables** (`.env`) store sensitive keys (OpenAI, Google) rather than hardcoding them.
+- **Error Handling**:
+  - Use `try/except` blocks around API calls.
+  - Show a clear `st.error(...)` banner on failure with a friendly message.
+  - Provide an expandable `st.expander("Show error details")` so technical users can view stack traces.
+
+Performance
+- **Client-side file checks** with Streamlit inspect file size immediately; warn if >200 MB or >30 minutes.
+- **Server-side enforcement**: Reject too‐large uploads early to save API time and cost.
+- **Progress bars** for each step keep the user informed and reduce perceived wait times.
+- **Session caching**: Storing the transcript and parsed JSON in `session_state` avoids repeating expensive API calls if the user clicks around.
+
+## 6. Conclusion and Overall Tech Stack Summary
+
+We chose a set of well-supported, easy-to-use technologies that let us deliver an end-to-end Video-to-Scope-Summary workflow quickly:
+
+• Frontend: **Streamlit** + **st.session_state** for zero-configuration UI.
+• Transcription & AI Parsing: **OpenAI Whisper API** + **GPT-4**.
+• Document Generation: **python-docx** (Word) + **pdfkit** (PDF).
+• Storage & Auth: **Google Drive API** + **OAuth 2.0**.
+• Environment & Dev: **Python**, **Git**, **virtualenv**, **.env** files.
+
+These choices align with the project goals by:
+- Minimizing infrastructure overhead (no servers to manage for Whisper).
+- Ensuring a smooth, guided user experience with progress bars, warnings, and download links.
+- Allowing rapid prototyping and iteration on a local machine.
+
+Unique aspects:
+- End-to-end automation from video upload to structured Word/PDF output.
+- Single-language (Python) across UI, AI calls, document logic, and API integrations.
+- Easy for non-technical estimators to use while still exposing detailed logs for debugging.
+
+With this stack in place, we have a robust foundation to demonstrate the MVP on July 1 and scale or brand it further in future iterations.

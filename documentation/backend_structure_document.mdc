@@ -1,0 +1,196 @@
+---
+description: Apply these rules when making changes to the project
+globs:
+alwaysApply: true
+---
+
+Update this rule if user requested changes to the project requirement, etc.
+# Backend Structure Document
+
+## 1. Backend Architecture
+
+Our backend is a single‐tier, Python‐based service built around a Streamlit application. It follows a modular design pattern, where each core feature lives in its own logical module. This makes our code easy to read, test, and extend as requirements change.
+
+• **Framework:** Streamlit drives both the user interface and the backend flow in a single process.  
+• **Modularity:** Separate modules/functions for:
+  - File handling (upload and validation)  
+  - Transcription service (Whisper API wrapper)  
+  - Parsing service (GPT-4 prompt handling)  
+  - Document generation (python-docx & pdfkit)  
+  - Google Drive integration
+
+How this supports our goals:
+
+• **Scalability:** We can add new modules (e.g., caching, analytics) without touching existing code.  
+• **Maintainability:** Clear separation of concerns means bug fixes and feature additions stay localized.  
+• **Performance:** We use Streamlit’s built‐in caching to avoid re-calling expensive APIs when inputs haven’t changed.
+
+---
+
+## 2. Database Management
+
+We do not use a traditional database in this MVP. Instead:
+
+• **Session State:** Streamlit’s `st.session_state` holds:
+  - Uploaded file metadata (name, size, type)
+  - Transcript text  
+  - Parsed scope items
+  - User configuration (Drive folder ID, template ID)
+
+• **File Storage:** Final `.docx` and `.pdf` files live in the Google Drive folder specified by the user.  
+• **Future Consideration:** If we need long‐term storage or multi‐user support, we could integrate a lightweight SQL database (e.g., SQLite or PostgreSQL).
+
+---
+
+## 3. Database Schema
+
+Not applicable for the current implementation (no SQL/NoSQL database).  
+
+**If we add a simple SQL database in the future, it might look like this (PostgreSQL syntax):**
+```sql
+CREATE TABLE app_config (
+  key   VARCHAR PRIMARY KEY,
+  value TEXT NOT NULL
+);
+
+CREATE TABLE transcripts (
+  id          SERIAL PRIMARY KEY,
+  file_name   VARCHAR NOT NULL,
+  transcript  TEXT NOT NULL,
+  created_at  TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE scope_items (
+  id           SERIAL PRIMARY KEY,
+  transcript_id INTEGER REFERENCES transcripts(id),
+  code         VARCHAR(2),
+  title        TEXT,
+  details      TEXT
+);
+```
+
+---
+
+## 4. API Design and Endpoints
+
+We don’t expose our own HTTP endpoints. Instead, we integrate with external services via their SDKs/HTTP APIs.
+
+• **OpenAI Whisper**  
+  - Method: `openai.Audio.transcribe()`  
+  - Purpose: Convert video/audio file to text.  
+  - Input: Binary audio data, model parameters.  
+  - Output: Full transcript string.
+
+• **OpenAI GPT-4**  
+  - Method: `openai.ChatCompletion.create()`  
+  - Purpose: Parse transcript into structured JSON by cost codes.  
+  - Input: System prompt, transcript chunk, cost-code mapping.  
+  - Output: JSON array of scope items.
+
+• **Google Drive API**  
+  - Service: `google-api-python-client` with OAuth2 service account  
+  - Purpose: Copy a blank template, upload the filled `.docx` and `.pdf`, and overwrite if needed.  
+  - Key Calls:
+    - `drive.files().copy()` to clone template
+    - `drive.files().update()` to replace content
+
+• **Internal Function Calls**  
+  - `upload_file()`  
+  - `validate_file_size_and_duration()`  
+  - `transcribe_audio()`  
+  - `parse_scope()`  
+  - `generate_docx()`  
+  - `generate_pdf()`  
+  - `upload_to_drive()`  
+
+---
+
+## 5. Hosting Solutions
+
+### Current Setup
+- **Local Machine:** Running the Streamlit app on a developer’s laptop for demo purposes.  
+
+### Future/Production Options
+- **Cloud VM (AWS EC2, GCP Compute Engine, Azure VM):**  
+  - Reliable uptime, easy scaling by resizing the VM.  
+  - SSL/TLS can be configured for secure connections.  
+- **Streamlit Cloud (share.streamlit.io):**  
+  - Simplest deployment model for public demos.  
+  - Automatic HTTPS and scaling to small numbers of concurrent users.
+
+**Benefits of these environments:**  
+• Reliability through managed infrastructure  
+• Scalability by adding CPU/RAM or horizontal instances  
+• Cost control via pay-as-you-go billing
+
+---
+
+## 6. Infrastructure Components
+
+While this MVP runs as a single process, we’ve built hooks for common infrastructure enhancements:
+
+• **Caching:**  
+  - Use `@st.cache_data` for transcripts and parse results to avoid repeat API calls.  
+• **Load Balancing & Auto-Scaling:**  
+  - Can be added when moving to multiple instances in the cloud.  
+• **Content Delivery (CDN):**  
+  - Not needed for dynamic Python apps, but static assets (e.g., logos) could be served via Cloudflare or AWS S3/CloudFront.  
+
+Together, these components can improve response times and handle more users in the future.
+
+---
+
+## 7. Security Measures
+
+We follow best practices to protect credentials and user data:
+
+• **API Keys & Credentials:**  
+  - Stored as environment variables or in a local `.env` file, never in source control.  
+  - Google service‐account JSON kept off public repos.  
+• **OAuth 2.0:**  
+  - Google Drive uses a service account for server-to-server authentication.  
+• **HTTPS:**  
+  - Streamlit default or cloud host provides SSL/TLS for all traffic.  
+• **Input Validation:**  
+  - We check file size (≤200 MB) and duration (≤30 min) before uploading to Whisper.  
+• **Error Handling:**  
+  - Detailed logs are hidden behind an expandable panel; users only see user-friendly error banners.  
+
+These measures ensure compliance with data‐protection standards and keep user files and credentials safe.
+
+---
+
+## 8. Monitoring and Maintenance
+
+### Monitoring
+
+• **Logging:**  
+  - Python’s `logging` module captures API call successes/failures and key milestones (upload, transcription complete, drive upload).  
+• **Streamlit Messages:**  
+  - Progress bars and status text let users see live progress.  
+
+### Maintenance
+
+• **Dependency Management:**  
+  - `requirements.txt` locks exact versions of all Python libraries.  
+• **Version Control:**  
+  - Git for tracking changes, code reviews, and rollback.  
+• **Automated Testing (Future):**  
+  - We can add unit tests for parsing logic and mocks for API calls.  
+• **Documentation Updates:**  
+  - This document lives alongside the code and gets updated as features evolve.
+
+---
+
+## 9. Conclusion and Overall Backend Summary
+
+In summary, our backend is a clean, modular Python service embedded inside a Streamlit app. It integrates:
+
+• **OpenAI Whisper** for transcription  
+• **OpenAI GPT-4** for parsing scope items  
+• **python-docx** and **pdfkit** for document creation  
+• **Google Drive API** for storage and sharing
+
+We’ve prioritized maintainability by isolating each concern in its own module, performance through caching, and security with environment-based credentials and OAuth2. Though the MVP runs locally, we’ve designed every layer with an eye toward future cloud deployment, auto-scaling, and robust monitoring.
+
+This setup meets the project goal: turning a video into a structured, cost‐coded scope summary in Word and PDF formats, all saved seamlessly to Google Drive. Anyone reading this should now understand how each piece fits together and how to extend or host the backend as needs grow.

@@ -1,0 +1,9 @@
+---
+description: Apply these rules when making changes to the project
+globs:
+alwaysApply: true
+---
+
+Update this rule if user requested changes to the project requirement, etc.
+flowchart TD
+    A[Start] --> B[Upload File]\n    B --> C{Check File Size}\n    C -->|OK| D[Transcribe File]\n    C -->|Too Large| E[Show Size Error]\n    E --> B\n    D --> F[Extract Scope Items]\n    F --> G[Generate Word Doc]\n    G --> H[Convert to PDF]\n    H --> I[Save Docs to Drive]\n    I --> J[Display Download Buttons]\n    J --> K[End]\n    D --> L{Transcription Error}\n    L -->|Yes| M[Show Error Banner]\n    M --> K\n    L -->|No| F
