@@ -3,7 +3,7 @@ import tempfile
 from datetime import datetime
 from typing import List, Dict
 from docx import Document
-from docx.shared import Inches
+from docx.shared import Inches, Pt
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.enum.style import WD_STYLE_TYPE
 import streamlit as st
@@ -12,7 +12,7 @@ from parse_scope import TEAMBUILDERS_COST_CODES
 # Try to import reportlab as fallback for PDF generation
 try:
     from reportlab.lib.pagesizes import letter
-    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
     from reportlab.lib.units import inch
     from reportlab.lib import colors
@@ -20,12 +20,13 @@ try:
 except ImportError:
     REPORTLAB_AVAILABLE = False
 
-def generate_docx(scope_items: List[Dict[str, str]], job_name: str = "Job", version: int = 1) -> str:
+def generate_docx(scope_items: List[Dict[str, str]], project_summary: Dict, job_name: str = "Job", version: int = 1) -> str:
     """
     Generate a DOCX document from scope items using TeamBuilders cost codes.
     
     Args:
         scope_items: List of formatted scope items
+        project_summary: Dictionary containing project summary information
         job_name: Name of the job for the document title
         version: Version number for the document
         
@@ -36,25 +37,67 @@ def generate_docx(scope_items: List[Dict[str, str]], job_name: str = "Job", vers
         Exception: If document generation fails
     """
     try:
-        # Create a new document
         doc = Document()
+        styles = doc.styles
+
+        # --- FONT SIZE ADJUSTMENTS ---
+        # Decrease font size for Normal text
+        styles['Normal'].font.size = Pt(9)
         
-        # --- STYLING (Optional, but good for consistency) ---
-        # You can define styles for headings, body text, etc. here if needed
-        
+        # Decrease font size for Headings
+        styles['Heading 1'].font.size = Pt(14)
+        styles['Heading 2'].font.size = Pt(12)
+        styles['Title'].font.size = Pt(24) # Assuming a title style exists
+
         # --- HEADER ---
         title = doc.add_heading(f'Scope Summary: {job_name}', 0)
         title.alignment = WD_ALIGN_PARAGRAPH.CENTER
         
+        # Reduce spacing after the title
+        title.paragraph_format.space_after = Pt(12)
+        
         doc.add_paragraph(f'Generated on: {datetime.now().strftime("%B %d, %Y at %I:%M %p")}')
-        doc.add_paragraph(f'Version: {version}')
-        doc.add_paragraph('')
+        version_p = doc.add_paragraph(f'Version: {version}')
+        
+        # Reduce spacing after the version paragraph
+        version_p.paragraph_format.space_after = Pt(18)
+        
+        # --- PROJECT SUMMARY SECTION ---
+        summary_heading = doc.add_heading('Project Summary', level=1)
+        summary_heading.paragraph_format.space_before = Pt(0) # Remove space above summary
+        
+        # Overview
+        doc.add_heading('Overall Sentiment', level=2)
+        doc.add_paragraph(project_summary.get('sentiment', 'N/A'))
 
-        # --- INTRODUCTION ---
-        doc.add_heading('Project Scope Overview', level=1)
-        doc.add_paragraph('This document outlines the scope of work based on the provided job site video, organized by TeamBuilders cost codes.')
-        doc.add_paragraph('')
+        doc.add_heading('Overview', level=2)
+        doc.add_paragraph(project_summary.get('overview', 'No overview provided.'))
 
+        # Key Requirements
+        doc.add_heading('Key Requirements', level=2)
+        for item in project_summary.get('keyRequirements', []):
+            doc.add_paragraph(item, style='List Bullet')
+
+        # Concerns
+        doc.add_heading('Concerns', level=2)
+        for item in project_summary.get('concerns', []):
+            doc.add_paragraph(item, style='List Bullet')
+
+        # Decision Points
+        doc.add_heading('Decision Points', level=2)
+        for item in project_summary.get('decisionPoints', []):
+            doc.add_paragraph(item, style='List Bullet')
+
+        # Important Notes
+        doc.add_heading('Important Notes', level=2)
+        for item in project_summary.get('importantNotes', []):
+            doc.add_paragraph(item, style='List Bullet')
+        
+        doc.add_page_break()
+
+        # --- SCOPE ITEMS SECTION ---
+        doc.add_heading('Detailed Scope Items', level=1)
+        
         # --- GROUP SCOPE ITEMS BY MAIN CATEGORY ---
         grouped_items = {}
         for item in scope_items:
@@ -197,12 +240,13 @@ def generate_pdf(docx_path: str, job_name: str = "Job", version: int = 1) -> str
     except Exception as e:
         raise Exception(f"PDF generation failed: {str(e)}")
 
-def generate_pdf_from_scope_items(scope_items: List[Dict[str, str]], job_name: str = "Job", version: int = 1) -> str:
+def generate_pdf_from_scope_items(scope_items: List[Dict[str, str]], project_summary: Dict, job_name: str = "Job", version: int = 1) -> str:
     """
     Generate a PDF document directly from scope items using TeamBuilders cost codes.
     
     Args:
         scope_items: List of formatted scope items from the parser
+        project_summary: Dictionary containing project summary information
         job_name: Name of the job for the document title
         version: Version number for the document
         
@@ -223,22 +267,46 @@ def generate_pdf_from_scope_items(scope_items: List[Dict[str, str]], job_name: s
         styles = getSampleStyleSheet()
         story = []
 
-        # --- STYLES ---
-        title_style = ParagraphStyle('CustomTitle', parent=styles['h1'], alignment=1, spaceAfter=20)
-        h2_style = ParagraphStyle('CustomH2', parent=styles['h2'], spaceBefore=12, spaceAfter=8)
-        body_style = styles['BodyText']
-        bullet_style = ParagraphStyle('CustomBullet', parent=styles['BodyText'], leftIndent=20, spaceAfter=4)
+        # --- STYLES (with adjusted font sizes) ---
+        title_style = ParagraphStyle('CustomTitle', parent=styles['h1'], fontSize=16, alignment=1, spaceAfter=18)
+        h1_style = ParagraphStyle('CustomH1', parent=styles['h1'], fontSize=14, spaceBefore=12, spaceAfter=8)
+        h2_style = ParagraphStyle('CustomH2', parent=styles['h2'], fontSize=12, spaceBefore=10, spaceAfter=6)
+        body_style = ParagraphStyle('CustomBody', parent=styles['BodyText'], fontSize=8)
+        bullet_style = ParagraphStyle('CustomBullet', parent=body_style, leftIndent=20, spaceAfter=4)
 
         # --- HEADER ---
         story.append(Paragraph(f'Scope Summary: {job_name}', title_style))
         story.append(Paragraph(f'Generated on: {datetime.now().strftime("%B %d, %Y at %I:%M %p")}', body_style))
         story.append(Paragraph(f'Version: {version}', body_style))
-        story.append(Spacer(1, 0.25*inch))
+        story.append(Spacer(1, 0.2*inch))
         
-        # --- INTRODUCTION ---
-        story.append(Paragraph('Project Scope Overview', styles['h1']))
-        story.append(Paragraph('This document outlines the scope of work based on the provided job site video, organized by TeamBuilders cost codes.', body_style))
-        story.append(Spacer(1, 0.25*inch))
+        # --- PROJECT SUMMARY SECTION ---
+        story.append(Paragraph('Project Summary', h1_style))
+        
+        story.append(Paragraph(f"<b>Overall Sentiment:</b> {project_summary.get('sentiment', 'N/A')}", body_style))
+        story.append(Spacer(1, 0.1*inch))
+        
+        story.append(Paragraph('Overview', h2_style))
+        story.append(Paragraph(project_summary.get('overview', 'No overview provided.'), body_style))
+        story.append(Spacer(1, 0.2*inch))
+        
+        def add_list_items(title, items):
+            if items:
+                story.append(Paragraph(title, h2_style))
+                for item in items:
+                    story.append(Paragraph(f"• {item}", bullet_style))
+                story.append(Spacer(1, 0.2*inch))
+
+        add_list_items('Key Requirements', project_summary.get('keyRequirements', []))
+        add_list_items('Concerns', project_summary.get('concerns', []))
+        add_list_items('Decision Points', project_summary.get('decisionPoints', []))
+        add_list_items('Important Notes', project_summary.get('importantNotes', []))
+
+        story.append(PageBreak())
+
+        # --- SCOPE ITEMS SECTION ---
+        story.append(Paragraph('Detailed Scope Items', h1_style))
+        story.append(Spacer(1, 0.2*inch))
 
         # --- GROUP AND ADD SCOPE ITEMS ---
         grouped_items = {}

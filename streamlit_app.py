@@ -28,6 +28,8 @@ if 'transcript' not in st.session_state:
     st.session_state.transcript = ""
 if 'scope_items' not in st.session_state:
     st.session_state.scope_items = []
+if 'project_summary' not in st.session_state:
+    st.session_state.project_summary = None
 if 'docx_path' not in st.session_state:
     st.session_state.docx_path = ""
 if 'pdf_path' not in st.session_state:
@@ -94,12 +96,16 @@ def process_video():
         transcription_status.success("✅ Transcription completed")
         
         # Step 3: Parsing
-        parsing_status.info("🔍 Extracting scope items...")
+        parsing_status.info("🔍 Extracting scope items & summary...")
         parsing_progress.progress(25)
         
-        raw_scope_items = parse_scope(transcript)
+        parsed_data = parse_scope(transcript)
+        raw_scope_items = parsed_data.get('scopeItems', [])
+        project_summary = parsed_data.get('projectSummary', {})
+        
         formatted_scope_items = format_scope_items_for_display(raw_scope_items)
         st.session_state.scope_items = formatted_scope_items
+        st.session_state.project_summary = project_summary
         
         parsing_progress.progress(100)
         parsing_status.success(f"✅ Extracted {len(raw_scope_items)} scope items")
@@ -108,13 +114,12 @@ def process_video():
         generation_status.info("📄 Generating documents...")
         generation_progress.progress(25)
         
-        # Generate DOCX using formatted scope items
-        docx_path = generate_docx(formatted_scope_items, job_name, version=1)
+        # Generate DOCX and PDF using both scope items and the project summary
+        docx_path = generate_docx(formatted_scope_items, st.session_state.project_summary, job_name, version=1)
         st.session_state.docx_path = docx_path
         generation_progress.progress(50)
         
-        # Generate PDF using the SAME formatted scope items
-        pdf_path = generate_pdf_from_scope_items(formatted_scope_items, job_name, version=1)
+        pdf_path = generate_pdf_from_scope_items(formatted_scope_items, st.session_state.project_summary, job_name, version=1)
         st.session_state.pdf_path = pdf_path
         generation_progress.progress(100)
         generation_status.success("✅ Documents generated and ready for download")
@@ -133,6 +138,36 @@ def process_video():
 
 def main():
     st.title("🎥 Video-to-Scope-Summary")
+
+    # --- CUSTOM STYLES ---
+    st.markdown("""
+        <style>
+            /* Main title: Video-to-Scope-Summary */
+            h1 {
+                font-size: 1.8rem !important;
+                font-weight: 600 !important;
+                padding-top: 1rem !important;
+                padding-bottom: 0.25rem !important;
+            }
+            
+            /* Section headers: Upload, Transcript, etc. */
+            h2 {
+                font-size: 1.4rem !important;
+                font-weight: 600 !important;
+                padding-top: 1rem !important;
+                padding-bottom: 0.25rem !important;
+            }
+
+            /* Make key components more compact */
+            div[data-testid="stFileUploader"],
+            div[data-testid="stTextArea"],
+            div[data-testid="stDataFrame"],
+            div[data-testid="stButton"] > button {
+                margin-bottom: 0.5rem !important;
+            }
+        </style>
+    """, unsafe_allow_html=True)
+
     st.markdown("Transform your job videos into structured scope summaries with AI-powered transcription and parsing.")
     
     # Check API keys
@@ -186,6 +221,7 @@ def main():
                     st.session_state.uploaded_file = None
                     st.session_state.transcript = ""
                     st.session_state.scope_items = []
+                    st.session_state.project_summary = None
                     st.session_state.docx_path = ""
                     st.session_state.pdf_path = ""
                     st.session_state.processing_complete = False
@@ -205,6 +241,33 @@ def main():
                 st.text(st.session_state.transcript)
         else:
             st.info("Transcript will appear here after processing")
+        
+        st.header("📝 Project Summary")
+        if st.session_state.project_summary:
+            summary = st.session_state.project_summary
+            st.markdown(f"**Sentiment:** {summary.get('sentiment', 'N/A')}")
+            
+            with st.expander("Show Full Project Summary", expanded=True):
+                st.subheader("Overview")
+                st.write(summary.get('overview', 'No overview provided.'))
+
+                st.subheader("Key Requirements")
+                for item in summary.get('keyRequirements', []):
+                    st.markdown(f"- {item}")
+
+                st.subheader("Concerns")
+                for item in summary.get('concerns', []):
+                    st.markdown(f"- {item}")
+
+                st.subheader("Decision Points")
+                for item in summary.get('decisionPoints', []):
+                    st.markdown(f"- {item}")
+                
+                st.subheader("Important Notes")
+                for item in summary.get('importantNotes', []):
+                    st.markdown(f"- {item}")
+        else:
+            st.info("Project summary will appear here after parsing")
         
         st.header("📊 Scope Items")
         if st.session_state.scope_items:

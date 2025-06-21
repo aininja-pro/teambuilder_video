@@ -91,15 +91,15 @@ TEAMBUILDERS_COST_CODES = {
   }
 }
 
-def parse_scope(transcript: str) -> List[Dict[str, str]]:
+def parse_scope(transcript: str) -> Dict:
     """
-    Parse transcript into scope items using GPT-4 with TeamBuilders cost codes.
+    Parse transcript into scope items and a project summary using GPT-4.
     
     Args:
         transcript: The transcribed text from the video/audio
         
     Returns:
-        List[Dict[str, str]]: List of scope items with TeamBuilders cost code structure
+        Dict: A dictionary containing 'scopeItems' and 'projectSummary'
         
     Raises:
         Exception: If parsing fails
@@ -110,13 +110,13 @@ def parse_scope(transcript: str) -> List[Dict[str, str]]:
         if not api_key:
             raise ValueError("OpenAI API key not found. Please set OPENAI_API_KEY in your .env file.")
         
-        # Set up OpenAI client (new v1.0+ API)
+        # Set up OpenAI client
         client = OpenAI(api_key=api_key)
         
         # Create the system prompt
         system_prompt = f"""
 You are a highly accurate construction estimator working with structured data.
-Your output MUST be a valid JSON array ONLY, with no extra text, explanations, or commentary.
+Your output MUST be a valid JSON object ONLY, with no extra text, explanations, or commentary.
 
 You are an expert construction estimator specializing in TeamBuilders cost code classification. Analyze the following transcript from a job site video and extract scope items organized by TeamBuilders cost codes.
 
@@ -155,29 +155,56 @@ Key Matching Guidelines:
 - Soffit, fascia, gutters → 18 Soffit/Fascia/Gutters
 - Roofing materials and work → 19 Roofing
 
-Return ONLY a valid JSON array with the following format:
-[
-  {{
-    "mainCode": "05",
-    "mainCategory": "Rough Carpentry",
-    "subCode": "3100",
-    "subCategory": "Wall Framing",
-    "description": "Installing 2x6 wall studs for exterior walls on main level",
-    "details": {{
-      "material": "2x6x8 precut studs",
-      "location": "Main level exterior walls",
-      "quantity": "Not specified",
-      "notes": "Standard 16-inch on center spacing mentioned"
-    }}
-  }}
-]
+Return a JSON object with two main sections:
 
-IMPORTANT: Return ONLY the JSON array. No explanatory text before or after.
+{{
+  "scopeItems": [
+    {{
+      "mainCode": "05",
+      "mainCategory": "Rough Carpentry",
+      "subCode": "3100",
+      "subCategory": "Wall Framing",
+      "description": "Installing 2x6 wall studs for exterior walls on main level",
+      "details": {{
+        "material": "2x6x8 precut studs",
+        "location": "Main level exterior walls",
+        "quantity": "Not specified",
+        "notes": "Standard 16-inch on center spacing mentioned"
+      }}
+    }}
+  ],
+  "projectSummary": {{
+    "overview": "Brief 2-3 sentence summary of the overall project scope and current status",
+    "keyRequirements": [
+      "Important client preferences or must-haves mentioned",
+      "Special considerations or constraints",
+      "Quality expectations or specific brands/materials requested"
+    ],
+    "concerns": [
+      "Any worries, issues, or problems mentioned",
+      "Budget concerns or cost considerations",
+      "Timeline pressures or scheduling conflicts"
+    ],
+    "decisionPoints": [
+      "Items where client needs to make choices",
+      "Alternatives discussed",
+      "Trade-offs mentioned"
+    ],
+    "importantNotes": [
+      "Any other critical information that doesn't fit in categories above",
+      "Client personality insights or communication preferences",
+      "Relationships with other contractors or past experiences mentioned"
+    ],
+    "sentiment": "Overall tone/mood of the conversation (e.g., excited, concerned, frustrated, confident)"
+  }}
+}}
+
+IMPORTANT: Return ONLY the JSON object. No explanatory text before or after.
 """
 
         user_prompt = f"Transcript to analyze:\n\n{transcript}"
         
-        # Call GPT-4 using the new API structure
+        # Call API
         response = client.chat.completions.create(
             model="gpt-4-turbo",
             messages=[
@@ -185,26 +212,20 @@ IMPORTANT: Return ONLY the JSON array. No explanatory text before or after.
                 {"role": "user", "content": user_prompt}
             ],
             temperature=0.1,
-            max_tokens=2000
+            max_tokens=3000,
+            response_format={"type": "json_object"} # Enforce JSON mode
         )
         
-        # Extract the response content
+        # Extract and parse response
         response_text = response.choices[0].message.content.strip()
-        
-        # Parse the JSON response
         try:
-            scope_items = json.loads(response_text)
+            parsed_data = json.loads(response_text)
             
-            # Validate the structure
-            if not isinstance(scope_items, list):
-                raise ValueError("Response is not a list")
+            # Validate the new structure
+            if not isinstance(parsed_data, dict) or 'scopeItems' not in parsed_data or 'projectSummary' not in parsed_data:
+                raise ValueError("Response is not a valid dictionary with 'scopeItems' and 'projectSummary' keys")
             
-            for item in scope_items:
-                required_keys = ['mainCode', 'mainCategory', 'subCode', 'subCategory', 'description', 'details']
-                if not all(key in item for key in required_keys):
-                    raise ValueError("Missing required keys in scope item")
-            
-            return scope_items
+            return parsed_data
             
         except json.JSONDecodeError as e:
             raise Exception(f"Failed to parse GPT-4 response as JSON: {str(e)}\nResponse: {response_text}")
