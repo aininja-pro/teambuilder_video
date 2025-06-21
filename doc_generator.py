@@ -5,15 +5,27 @@ from typing import List, Dict
 from docx import Document
 from docx.shared import Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
-import pdfkit
+from docx.enum.style import WD_STYLE_TYPE
 import streamlit as st
+from parse_scope import TEAMBUILDERS_COST_CODES
+
+# Try to import reportlab as fallback for PDF generation
+try:
+    from reportlab.lib.pagesizes import letter
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import inch
+    from reportlab.lib import colors
+    REPORTLAB_AVAILABLE = True
+except ImportError:
+    REPORTLAB_AVAILABLE = False
 
 def generate_docx(scope_items: List[Dict[str, str]], job_name: str = "Job", version: int = 1) -> str:
     """
-    Generate a DOCX document from scope items.
+    Generate a DOCX document from scope items using TeamBuilders cost codes.
     
     Args:
-        scope_items: List of scope items with 'code', 'title', and 'details' keys
+        scope_items: List of formatted scope items
         job_name: Name of the job for the document title
         version: Version number for the document
         
@@ -27,64 +39,95 @@ def generate_docx(scope_items: List[Dict[str, str]], job_name: str = "Job", vers
         # Create a new document
         doc = Document()
         
-        # Add title
-        title = doc.add_heading(f'{job_name} - Scope Summary', 0)
+        # --- STYLING (Optional, but good for consistency) ---
+        # You can define styles for headings, body text, etc. here if needed
+        
+        # --- HEADER ---
+        title = doc.add_heading(f'Scope Summary: {job_name}', 0)
         title.alignment = WD_ALIGN_PARAGRAPH.CENTER
         
-        # Add metadata
-        date_str = datetime.now().strftime("%Y-%m-%d")
-        doc.add_paragraph(f"Generated: {date_str}")
-        doc.add_paragraph(f"Version: {version}")
-        doc.add_paragraph("")  # Empty line
-        
-        # Group scope items by cost code
+        doc.add_paragraph(f'Generated on: {datetime.now().strftime("%B %d, %Y at %I:%M %p")}')
+        doc.add_paragraph(f'Version: {version}')
+        doc.add_paragraph('')
+
+        # --- INTRODUCTION ---
+        doc.add_heading('Project Scope Overview', level=1)
+        doc.add_paragraph('This document outlines the scope of work based on the provided job site video, organized by TeamBuilders cost codes.')
+        doc.add_paragraph('')
+
+        # --- GROUP SCOPE ITEMS BY MAIN CATEGORY ---
         grouped_items = {}
         for item in scope_items:
-            code = item['code']
-            if code not in grouped_items:
-                grouped_items[code] = []
-            grouped_items[code].append(item)
-        
-        # Sort by cost code
-        sorted_codes = sorted(grouped_items.keys())
-        
-        # Add scope items by division
-        for code in sorted_codes:
-            items = grouped_items[code]
+            main_code = item.get('Main Code', '00')
+            main_category = item.get('Main Category', 'Uncategorized')
             
-            # Add division header
-            from parse_scope import COST_CODE_MAPPING
-            division_name = COST_CODE_MAPPING.get(code, "Unknown Division")
-            doc.add_heading(f"Division {code}: {division_name}", level=1)
+            group_key = f"{main_code} {main_category}"
+            if group_key not in grouped_items:
+                grouped_items[group_key] = []
+            grouped_items[group_key].append(item)
             
-            # Add items for this division
+        # Sort main categories by code
+        sorted_groups = sorted(grouped_items.items(), key=lambda x: x[0])
+        
+        # --- ADD SCOPE ITEMS TO DOCUMENT ---
+        for group_key, items in sorted_groups:
+            # Add main category heading
+            doc.add_heading(group_key, level=2)
+            
+            # Add sub-items
             for item in items:
-                # Add item title as subheading
-                doc.add_heading(item['title'], level=2)
+                # Add sub-category and description
+                sub_category = item.get('Sub Category', 'General')
+                description = item.get('Description', 'No description provided.')
                 
-                # Add item details
-                doc.add_paragraph(item['details'])
-                doc.add_paragraph("")  # Empty line between items
+                p = doc.add_paragraph()
+                p.add_run(f"{item.get('Sub Code')} {sub_category}: ").bold = True
+                p.add_run(description)
+                
+                # Add details in a list or table for clarity
+                details_to_add = {
+                    "Material": item.get('Material'),
+                    "Location": item.get('Location'),
+                    "Quantity": item.get('Quantity'),
+                    "Notes": item.get('Notes')
+                }
+                
+                for key, value in details_to_add.items():
+                    if value and value.strip(): # Only add if value exists
+                        p_detail = doc.add_paragraph(style='List Bullet')
+                        p_detail.add_run(f"{key}: ").bold = True
+                        p_detail.add_run(f"{value}")
+
+                doc.add_paragraph('') # Add space after each item
         
-        # Create temporary file
-        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.docx')
-        temp_file_path = temp_file.name
-        temp_file.close()
+        # --- FOOTER ---
+        doc.add_paragraph('')
+        footer_para = doc.add_paragraph('--- End of Scope Summary ---')
+        footer_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
         
-        # Save document
-        doc.save(temp_file_path)
+        # --- SAVE DOCUMENT ---
+        temp_dir = tempfile.gettempdir()
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        docx_filename = f"scope_summary_{job_name}_{timestamp}_v{version}.docx"
+        docx_path = os.path.join(temp_dir, docx_filename)
         
-        return temp_file_path
+        doc.save(docx_path)
+        
+        return docx_path
         
     except Exception as e:
+        # Log the full traceback for debugging
+        import traceback
+        st.error(f"Error in DOCX generation: {e}")
+        st.error(traceback.format_exc())
         raise Exception(f"DOCX generation failed: {str(e)}")
 
 def generate_pdf(docx_path: str, job_name: str = "Job", version: int = 1) -> str:
     """
-    Generate a PDF from a DOCX file or create a PDF directly from scope items.
+    Generate a PDF document from the DOCX file or create directly from scope items.
     
     Args:
-        docx_path: Path to the DOCX file to convert (or None to create from scope_items)
+        docx_path: Path to the DOCX file (for reference)
         job_name: Name of the job for the document title
         version: Version number for the document
         
@@ -95,186 +138,154 @@ def generate_pdf(docx_path: str, job_name: str = "Job", version: int = 1) -> str
         Exception: If PDF generation fails
     """
     try:
-        # Create temporary file for PDF
-        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.pdf')
-        temp_file_path = temp_file.name
-        temp_file.close()
+        if not REPORTLAB_AVAILABLE:
+            raise Exception("PDF generation requires reportlab. Install with: pip install reportlab")
         
-        # Try to use pdfkit to convert DOCX to PDF
-        # Note: This requires wkhtmltopdf to be installed
-        try:
-            # For now, we'll create a simple HTML version and convert to PDF
-            # This is a fallback since direct DOCX to PDF conversion is complex
-            html_content = create_html_from_docx_path(docx_path, job_name, version)
-            
-            # Configure pdfkit options
-            options = {
-                'page-size': 'A4',
-                'margin-top': '0.75in',
-                'margin-right': '0.75in',
-                'margin-bottom': '0.75in',
-                'margin-left': '0.75in',
-                'encoding': "UTF-8",
-                'no-outline': None
-            }
-            
-            # Generate PDF from HTML
-            pdfkit.from_string(html_content, temp_file_path, options=options)
-            
-        except Exception as pdfkit_error:
-            # If pdfkit fails, create a simple text-based PDF using reportlab as fallback
-            st.warning("pdfkit failed, using fallback PDF generation")
-            temp_file_path = create_simple_pdf_fallback(docx_path, job_name, version)
+        # Create PDF path
+        temp_dir = tempfile.gettempdir()
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        pdf_filename = f"scope_summary_{job_name}_{timestamp}_v{version}.pdf"
+        pdf_path = os.path.join(temp_dir, pdf_filename)
         
-        return temp_file_path
+        # Create PDF document
+        doc = SimpleDocTemplate(pdf_path, pagesize=letter)
+        styles = getSampleStyleSheet()
+        story = []
+        
+        # Title
+        title_style = ParagraphStyle(
+            'CustomTitle',
+            parent=styles['Heading1'],
+            fontSize=18,
+            spaceAfter=30,
+            alignment=1  # Center alignment
+        )
+        story.append(Paragraph(f'Scope Summary: {job_name}', title_style))
+        story.append(Spacer(1, 12))
+        
+        # Metadata
+        story.append(Paragraph(f'Generated on: {datetime.now().strftime("%B %d, %Y at %I:%M %p")}', styles['Normal']))
+        story.append(Paragraph(f'Version: {version}', styles['Normal']))
+        story.append(Spacer(1, 20))
+        
+        # Introduction
+        story.append(Paragraph('Project Scope Overview', styles['Heading2']))
+        story.append(Paragraph('This document contains the scope items extracted from the job site video, organized by construction division codes.', styles['Normal']))
+        story.append(Spacer(1, 20))
+        
+        # Note: For a complete PDF, we would need to re-parse the scope items
+        # For now, we'll create a simple PDF that references the DOCX
+        story.append(Paragraph('Scope Items', styles['Heading2']))
+        story.append(Paragraph('Please refer to the DOCX file for detailed scope items, or contact support for a fully formatted PDF version.', styles['Normal']))
+        story.append(Spacer(1, 20))
+        
+        # Footer
+        story.append(Spacer(1, 50))
+        footer_style = ParagraphStyle(
+            'Footer',
+            parent=styles['Normal'],
+            alignment=1,  # Center alignment
+            fontSize=10
+        )
+        story.append(Paragraph('--- End of Scope Summary ---', footer_style))
+        
+        # Build PDF
+        doc.build(story)
+        
+        return pdf_path
         
     except Exception as e:
         raise Exception(f"PDF generation failed: {str(e)}")
 
-def create_html_from_docx_path(docx_path: str, job_name: str, version: int) -> str:
+def generate_pdf_from_scope_items(scope_items: List[Dict[str, str]], job_name: str = "Job", version: int = 1) -> str:
     """
-    Create HTML content from a DOCX file for PDF conversion.
+    Generate a PDF document directly from scope items using TeamBuilders cost codes.
     
     Args:
-        docx_path: Path to the DOCX file
-        job_name: Name of the job
-        version: Version number
-        
-    Returns:
-        str: HTML content
-    """
-    try:
-        # Read the DOCX file
-        doc = Document(docx_path)
-        
-        # Start HTML
-        html_content = f"""
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset="UTF-8">
-            <title>{job_name} - Scope Summary</title>
-            <style>
-                body {{ font-family: Arial, sans-serif; margin: 20px; }}
-                h1 {{ color: #2c3e50; border-bottom: 2px solid #3498db; }}
-                h2 {{ color: #34495e; margin-top: 20px; }}
-                h3 {{ color: #7f8c8d; }}
-                p {{ margin: 10px 0; line-height: 1.6; }}
-                .metadata {{ color: #7f8c8d; font-style: italic; }}
-            </style>
-        </head>
-        <body>
-        """
-        
-        # Extract content from DOCX
-        for paragraph in doc.paragraphs:
-            text = paragraph.text.strip()
-            if not text:
-                html_content += "<br>"
-                continue
-                
-            # Determine heading level based on style
-            if paragraph.style.name.startswith('Heading'):
-                level = paragraph.style.name.split()[-1] if paragraph.style.name.split()[-1].isdigit() else "1"
-                html_content += f"<h{level}>{text}</h{level}>"
-            else:
-                html_content += f"<p>{text}</p>"
-        
-        html_content += """
-        </body>
-        </html>
-        """
-        
-        return html_content
-        
-    except Exception as e:
-        # Fallback HTML if DOCX reading fails
-        date_str = datetime.now().strftime("%Y-%m-%d")
-        return f"""
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset="UTF-8">
-            <title>{job_name} - Scope Summary</title>
-        </head>
-        <body>
-            <h1>{job_name} - Scope Summary</h1>
-            <p>Generated: {date_str}</p>
-            <p>Version: {version}</p>
-            <p>Error reading DOCX content: {str(e)}</p>
-        </body>
-        </html>
-        """
-
-def create_simple_pdf_fallback(docx_path: str, job_name: str, version: int) -> str:
-    """
-    Create a simple PDF using reportlab as fallback.
-    
-    Args:
-        docx_path: Path to the DOCX file (for content extraction)
-        job_name: Name of the job
-        version: Version number
+        scope_items: List of formatted scope items from the parser
+        job_name: Name of the job for the document title
+        version: Version number for the document
         
     Returns:
         str: Path to the generated PDF file
     """
     try:
-        from reportlab.lib.pagesizes import letter
-        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
-        from reportlab.lib.styles import getSampleStyleSheet
-        from reportlab.lib.units import inch
+        if not REPORTLAB_AVAILABLE:
+            raise Exception("PDF generation requires reportlab. Install with: pip install reportlab")
         
-        # Create temporary file for PDF
-        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.pdf')
-        temp_file_path = temp_file.name
-        temp_file.close()
+        # --- SETUP PDF ---
+        temp_dir = tempfile.gettempdir()
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        pdf_filename = f"scope_summary_{job_name}_{timestamp}_v{version}.pdf"
+        pdf_path = os.path.join(temp_dir, pdf_filename)
         
-        # Create PDF document
-        doc = SimpleDocTemplate(temp_file_path, pagesize=letter)
+        doc = SimpleDocTemplate(pdf_path, pagesize=letter, topMargin=0.5*inch, bottomMargin=0.5*inch)
         styles = getSampleStyleSheet()
         story = []
+
+        # --- STYLES ---
+        title_style = ParagraphStyle('CustomTitle', parent=styles['h1'], alignment=1, spaceAfter=20)
+        h2_style = ParagraphStyle('CustomH2', parent=styles['h2'], spaceBefore=12, spaceAfter=8)
+        body_style = styles['BodyText']
+        bullet_style = ParagraphStyle('CustomBullet', parent=styles['BodyText'], leftIndent=20, spaceAfter=4)
+
+        # --- HEADER ---
+        story.append(Paragraph(f'Scope Summary: {job_name}', title_style))
+        story.append(Paragraph(f'Generated on: {datetime.now().strftime("%B %d, %Y at %I:%M %p")}', body_style))
+        story.append(Paragraph(f'Version: {version}', body_style))
+        story.append(Spacer(1, 0.25*inch))
         
-        # Add title
-        title = Paragraph(f"{job_name} - Scope Summary", styles['Title'])
-        story.append(title)
-        story.append(Spacer(1, 12))
+        # --- INTRODUCTION ---
+        story.append(Paragraph('Project Scope Overview', styles['h1']))
+        story.append(Paragraph('This document outlines the scope of work based on the provided job site video, organized by TeamBuilders cost codes.', body_style))
+        story.append(Spacer(1, 0.25*inch))
+
+        # --- GROUP AND ADD SCOPE ITEMS ---
+        grouped_items = {}
+        for item in scope_items:
+            main_code = item.get('Main Code', '00')
+            main_category = item.get('Main Category', 'Uncategorized')
+            group_key = f"{main_code} {main_category}"
+            if group_key not in grouped_items:
+                grouped_items[group_key] = []
+            grouped_items[group_key].append(item)
+
+        sorted_groups = sorted(grouped_items.items(), key=lambda x: x[0])
+
+        for group_key, items in sorted_groups:
+            story.append(Paragraph(group_key, h2_style))
+            for item in items:
+                sub_category = item.get('Sub Category', 'General')
+                description = item.get('Description', 'No description provided.')
+                
+                story.append(Paragraph(f"<b>{item.get('Sub Code')} {sub_category}:</b> {description}", body_style))
+                
+                details_to_add = {
+                    "Material": item.get('Material'),
+                    "Location": item.get('Location'),
+                    "Quantity": item.get('Quantity'),
+                    "Notes": item.get('Notes')
+                }
+                
+                for key, value in details_to_add.items():
+                    if value and value.strip():
+                        story.append(Paragraph(f"• <b>{key}:</b> {value}", bullet_style))
+                story.append(Spacer(1, 0.1*inch))
         
-        # Add metadata
-        date_str = datetime.now().strftime("%Y-%m-%d")
-        story.append(Paragraph(f"Generated: {date_str}", styles['Normal']))
-        story.append(Paragraph(f"Version: {version}", styles['Normal']))
-        story.append(Spacer(1, 12))
+        # --- FOOTER ---
+        story.append(Spacer(1, 0.5*inch))
+        footer_style = ParagraphStyle('Footer', parent=body_style, alignment=1)
+        story.append(Paragraph('--- End of Scope Summary ---', footer_style))
         
-        # Try to extract content from DOCX
-        try:
-            docx_doc = Document(docx_path)
-            for paragraph in docx_doc.paragraphs:
-                text = paragraph.text.strip()
-                if text:
-                    if paragraph.style.name.startswith('Heading'):
-                        story.append(Paragraph(text, styles['Heading1']))
-                    else:
-                        story.append(Paragraph(text, styles['Normal']))
-                    story.append(Spacer(1, 6))
-        except Exception:
-            story.append(Paragraph("Error extracting content from DOCX file.", styles['Normal']))
-        
-        # Build PDF
+        # --- BUILD DOCUMENT ---
         doc.build(story)
-        
-        return temp_file_path
-        
-    except ImportError:
-        # If reportlab is not available, create a simple text file
-        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.txt', mode='w')
-        temp_file.write(f"{job_name} - Scope Summary\n")
-        temp_file.write(f"Generated: {datetime.now().strftime('%Y-%m-%d')}\n")
-        temp_file.write(f"Version: {version}\n\n")
-        temp_file.write("PDF generation libraries not available. This is a text fallback.\n")
-        temp_file.close()
-        return temp_file.name
+        return pdf_path
+
     except Exception as e:
-        raise Exception(f"Fallback PDF generation failed: {str(e)}")
+        import traceback
+        st.error(f"Error in PDF generation: {e}")
+        st.error(traceback.format_exc())
+        raise Exception(f"PDF generation failed: {str(e)}")
 
 def create_filename(job_name: str, version: int, extension: str) -> str:
     """
@@ -288,8 +299,8 @@ def create_filename(job_name: str, version: int, extension: str) -> str:
     Returns:
         str: Formatted filename
     """
-    date_str = datetime.now().strftime("%Y%m%d")
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     safe_job_name = "".join(c for c in job_name if c.isalnum() or c in (' ', '-', '_')).rstrip()
     safe_job_name = safe_job_name.replace(' ', '_')
     
-    return f"{safe_job_name}_ScopeSummary_{date_str}_v{version}.{extension}" 
+    return f"{safe_job_name}_ScopeSummary_{timestamp}_v{version}.{extension}" 

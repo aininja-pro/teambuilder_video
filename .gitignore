@@ -1,3 +1,11 @@
 venv/
 .env
-.cursor/ 
+.env.backup
+.cursor/
+*.mp4
+*.mov
+*.jpg
+*.png
+*.pkg
+__pycache__/
+*.pyc 
