@@ -108,6 +108,9 @@ def convert_mov_to_mp4(file_bytes: bytes, filename: str) -> bytes:
     Raises:
         Exception: If conversion fails
     """
+    temp_mov_path = None
+    temp_mp4_path = None
+    
     try:
         # Create temporary files
         with tempfile.NamedTemporaryFile(suffix='.mov', delete=False) as temp_mov:
@@ -116,29 +119,40 @@ def convert_mov_to_mp4(file_bytes: bytes, filename: str) -> bytes:
             
         temp_mp4_path = temp_mov_path.replace('.mov', '.mp4')
         
-        # Convert using FFmpeg
+        # Convert using FFmpeg with proper error handling
         stream = ffmpeg.input(temp_mov_path)
         stream = ffmpeg.output(stream, temp_mp4_path, vcodec='libx264', acodec='aac')
-        ffmpeg.run(stream, overwrite_output=True, quiet=True)
+        
+        # Run conversion with error capture
+        ffmpeg.run(stream, overwrite_output=True, quiet=True, capture_stdout=True, capture_stderr=True)
+        
+        # Check if output file was created
+        if not os.path.exists(temp_mp4_path):
+            raise Exception("Conversion failed - output file not created")
         
         # Read the converted file
         with open(temp_mp4_path, 'rb') as f:
             converted_bytes = f.read()
             
-        # Clean up temporary files
-        os.unlink(temp_mov_path)
-        os.unlink(temp_mp4_path)
-        
+        if len(converted_bytes) == 0:
+            raise Exception("Conversion failed - output file is empty")
+            
         return converted_bytes
         
     except Exception as e:
-        # Clean up on error
+        error_msg = f"MOV to MP4 conversion failed: {str(e)}"
+        st.error(error_msg)
+        raise Exception(error_msg)
+        
+    finally:
+        # Clean up temporary files
         try:
-            os.unlink(temp_mov_path)
-            os.unlink(temp_mp4_path)
+            if temp_mov_path and os.path.exists(temp_mov_path):
+                os.unlink(temp_mov_path)
+            if temp_mp4_path and os.path.exists(temp_mp4_path):
+                os.unlink(temp_mp4_path)
         except:
-            pass
-        raise Exception(f"MOV to MP4 conversion failed: {str(e)}")
+            pass  # Ignore cleanup errors
 
 def transcribe_video(file_bytes: bytes, filename: str) -> str:
     """
@@ -149,8 +163,13 @@ def transcribe_video(file_bytes: bytes, filename: str) -> str:
         # Check if conversion is needed
         if filename.lower().endswith('.mov'):
             st.info("🔄 Converting MOV to MP4 format...")
-            file_bytes = convert_mov_to_mp4(file_bytes, filename)
-            filename = filename.rsplit('.', 1)[0] + '.mp4'  # Change extension
+            try:
+                file_bytes = convert_mov_to_mp4(file_bytes, filename)
+                filename = filename.rsplit('.', 1)[0] + '.mp4'  # Change extension
+                st.success("✅ MOV conversion completed")
+            except Exception as e:
+                st.error(f"MOV conversion failed: {str(e)}")
+                raise Exception(f"MOV conversion failed: {str(e)}")
         
         # Get OpenAI API key from environment
         api_key = os.getenv('OPENAI_API_KEY')
@@ -182,6 +201,7 @@ def transcribe_video(file_bytes: bytes, filename: str) -> str:
                 transcription_file_path = temp_file_path
             
             # Transcribe using the new API structure
+            st.info("🎤 Sending file to OpenAI Whisper...")
             with open(transcription_file_path, 'rb') as audio_file:
                 transcript = client.audio.transcriptions.create(
                     model="whisper-1",
@@ -189,7 +209,20 @@ def transcribe_video(file_bytes: bytes, filename: str) -> str:
                     response_format="text"
                 )
             
-            # The new API returns the transcript directly as a string
+            # Validate that we got actual text back
+            if not isinstance(transcript, str):
+                raise Exception("Invalid response from Whisper API - not a string")
+            
+            # Check if transcript looks like binary data or is empty
+            if not transcript.strip():
+                raise Exception("Transcription returned empty text")
+            
+            # Check for binary-like content (lots of non-printable characters)
+            printable_chars = sum(1 for c in transcript[:1000] if c.isprintable() or c.isspace())
+            if len(transcript) > 100 and printable_chars / min(len(transcript), 1000) < 0.7:
+                raise Exception("Transcription appears to contain binary data")
+            
+            st.success(f"✅ Transcription completed - {len(transcript)} characters")
             return transcript
             
         finally:
@@ -202,7 +235,9 @@ def transcribe_video(file_bytes: bytes, filename: str) -> str:
                 os.unlink(compressed_path)
                 
     except Exception as e:
-        raise Exception(f"Transcription failed: {str(e)}")
+        error_msg = f"Transcription failed: {str(e)}"
+        st.error(error_msg)
+        raise Exception(error_msg)
 
 def validate_file_duration(file_bytes: bytes, filename: str, max_duration_minutes: int = 30) -> tuple[bool, str]:
     """

@@ -47,6 +47,16 @@ def validate_api_keys():
     
     return len(missing) == 0, missing
 
+def reset_session_state():
+    """Reset all session state variables to start fresh."""
+    st.session_state.uploaded_file = None
+    st.session_state.transcript = ""
+    st.session_state.scope_items = []
+    st.session_state.project_summary = None
+    st.session_state.docx_path = ""
+    st.session_state.pdf_path = ""
+    st.session_state.processing_complete = False
+
 def process_video():
     """Main processing function that orchestrates the entire pipeline."""
     if not st.session_state.uploaded_file:
@@ -135,6 +145,11 @@ def process_video():
         st.error(f"❌ An error occurred: {str(e)}")
         with st.expander("Show error details"):
             st.code(traceback.format_exc())
+        
+        # Offer reset button on error
+        if st.button("🔄 Reset and Try Again"):
+            reset_session_state()
+            st.rerun()
 
 def main():
     st.title("🎥 Video-to-Scope-Summary")
@@ -218,27 +233,35 @@ def main():
             if st.session_state.processing_complete:
                 if st.button("🔄 Process Another File"):
                     # Reset session state
-                    st.session_state.uploaded_file = None
-                    st.session_state.transcript = ""
-                    st.session_state.scope_items = []
-                    st.session_state.project_summary = None
-                    st.session_state.docx_path = ""
-                    st.session_state.pdf_path = ""
-                    st.session_state.processing_complete = False
+                    reset_session_state()
                     st.rerun()
     
     with col2:
         st.header("📋 Transcript Preview")
         if st.session_state.transcript:
-            # Show first 500 characters
-            preview_text = st.session_state.transcript[:500]
-            if len(st.session_state.transcript) > 500:
-                preview_text += "..."
-            st.text_area("Transcript", preview_text, height=200, disabled=True)
+            # Validate transcript is safe to display
+            transcript = st.session_state.transcript
             
-            # Show full transcript in expander
-            with st.expander("Show full transcript"):
-                st.text(st.session_state.transcript)
+            # Safety check: ensure it's a string and contains readable text
+            if isinstance(transcript, str) and transcript.strip():
+                # Check if transcript looks like actual text (not binary data)
+                printable_chars = sum(1 for c in transcript[:1000] if c.isprintable() or c.isspace())
+                is_readable = len(transcript) < 100 or printable_chars / min(len(transcript), 1000) > 0.7
+                
+                if is_readable:
+                    # Show first 500 characters
+                    preview_text = transcript[:500]
+                    if len(transcript) > 500:
+                        preview_text += "..."
+                    st.text_area("Transcript", preview_text, height=200, disabled=True)
+                    
+                    # Show full transcript in expander
+                    with st.expander("Show full transcript"):
+                        st.text(transcript)
+                else:
+                    st.error("❌ Transcript contains unreadable data. Please try processing the file again.")
+            else:
+                st.error("❌ Invalid transcript data. Please try processing the file again.")
         else:
             st.info("Transcript will appear here after processing")
         
