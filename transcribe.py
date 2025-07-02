@@ -94,21 +94,64 @@ def compress_audio_for_whisper(input_path: str, max_size_mb: int = 24) -> str:
     except Exception as e:
         raise Exception(f"Audio compression failed: {str(e)}")
 
-def transcribe_video(file_bytes: bytes, filename: str) -> str:
+def convert_mov_to_mp4(file_bytes: bytes, filename: str) -> bytes:
     """
-    Transcribe video/audio file using OpenAI Whisper API.
+    Convert MOV file to MP4 format using FFmpeg.
     
     Args:
-        file_bytes: The audio/video file content as bytes
-        filename: Original filename for proper file extension handling
+        file_bytes: The MOV file as bytes
+        filename: Original filename
         
     Returns:
-        str: The transcribed text
+        bytes: The converted MP4 file as bytes
         
     Raises:
-        Exception: If transcription fails
+        Exception: If conversion fails
     """
     try:
+        # Create temporary files
+        with tempfile.NamedTemporaryFile(suffix='.mov', delete=False) as temp_mov:
+            temp_mov.write(file_bytes)
+            temp_mov_path = temp_mov.name
+            
+        temp_mp4_path = temp_mov_path.replace('.mov', '.mp4')
+        
+        # Convert using FFmpeg
+        stream = ffmpeg.input(temp_mov_path)
+        stream = ffmpeg.output(stream, temp_mp4_path, vcodec='libx264', acodec='aac')
+        ffmpeg.run(stream, overwrite_output=True, quiet=True)
+        
+        # Read the converted file
+        with open(temp_mp4_path, 'rb') as f:
+            converted_bytes = f.read()
+            
+        # Clean up temporary files
+        os.unlink(temp_mov_path)
+        os.unlink(temp_mp4_path)
+        
+        return converted_bytes
+        
+    except Exception as e:
+        # Clean up on error
+        try:
+            os.unlink(temp_mov_path)
+            os.unlink(temp_mp4_path)
+        except:
+            pass
+        raise Exception(f"MOV to MP4 conversion failed: {str(e)}")
+
+def transcribe_video(file_bytes: bytes, filename: str) -> str:
+    """
+    Transcribe video/audio to text using OpenAI Whisper.
+    Automatically converts MOV files to MP4 before transcription.
+    """
+    try:
+        # Check if conversion is needed
+        if filename.lower().endswith('.mov'):
+            st.info("🔄 Converting MOV to MP4 format...")
+            file_bytes = convert_mov_to_mp4(file_bytes, filename)
+            filename = filename.rsplit('.', 1)[0] + '.mp4'  # Change extension
+        
         # Get OpenAI API key from environment
         api_key = os.getenv('OPENAI_API_KEY')
         if not api_key:

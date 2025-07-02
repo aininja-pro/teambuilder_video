@@ -185,10 +185,10 @@ def main():
         
         # File uploader
         uploaded_file = st.file_uploader(
-            "Choose an MP4 or MP3 file",
-            type=['mp4', 'mp3'],
+            "Choose a video or audio file",
+            type=['mp4', 'mov', 'mpeg', 'webm', 'mp3', 'm4a', 'wav', 'mpga', 'flac', 'oga', 'ogg'],
             accept_multiple_files=False,
-            help="Files up to 300MB supported. Large files will be automatically compressed for processing."
+            help="Supports video (MP4, MOV, MPEG, WebM) and audio (MP3, M4A, WAV, FLAC, OGA, OGG) files up to 500MB. MOV files are automatically converted to MP4."
         )
         
         if uploaded_file is not None:
@@ -200,11 +200,11 @@ def main():
             st.info(f"📊 **Size:** {file_size_mb:.2f} MB")
             
             # Validate file size with different warning levels
-            if file_size_mb > 300:
-                st.error("🚫 File size exceeds 300MB. Please use a smaller file or split the video into segments.")
-            elif file_size_mb > 200:
+            if file_size_mb > 500:
+                st.error("🚫 File size exceeds 500MB. Please use a smaller file or split the video into segments.")
+            elif file_size_mb > 350:
                 st.warning("⚠️ Large file detected! Processing will take longer and may incur higher costs. The file will be automatically compressed for transcription.")
-            elif file_size_mb > 100:
+            elif file_size_mb > 200:
                 st.info("ℹ️ Medium-sized file. Will be compressed if needed for transcription.")
             
             # Processing section
