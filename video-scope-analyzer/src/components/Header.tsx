@@ -14,13 +14,11 @@ export default function Header({ onProjectsClick, onAnalyzeVideoClick }: HeaderP
           {/* Logo */}
           <div className="flex items-center">
             <Link href="/" className="flex items-center">
-              <Image
+              <img
                 src="/assets/team-builders-logo.png"
                 alt="Team Builders Logo"
                 width={160}
                 height={26}
-                priority
-                unoptimized
               />
             </Link>
           </div>
