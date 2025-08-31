@@ -1,5 +1,6 @@
 import Image from 'next/image'
 import Link from 'next/link'
+import logoImage from '../assets/team-builders-logo.png'
 
 interface HeaderProps {
   onProjectsClick?: () => void
@@ -15,7 +16,7 @@ export default function Header({ onProjectsClick, onAnalyzeVideoClick }: HeaderP
           <div className="flex items-center" style={{ backgroundColor: 'red', padding: '2px' }}>
             <Link href="/" className="flex items-center">
               <img 
-                src="/team-builders-logo.png"
+                src={logoImage}
                 alt="Team Builders Logo"
                 style={{ 
                   width: 'auto', 
