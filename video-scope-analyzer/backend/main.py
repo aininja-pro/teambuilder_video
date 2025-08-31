@@ -20,8 +20,8 @@ q = None
 
 try:
     if os.getenv('USE_REDIS', 'true').lower() != 'false':
-        redis = Redis(host="localhost", port=6379, decode_responses=True)
-        redis_async = AsyncRedis.from_url("redis://localhost:6379/0", decode_responses=True)
+        redis = Redis.from_url(os.getenv("REDIS_URL", "redis://localhost:6379"), decode_responses=True)
+        redis_async = AsyncRedis.from_url(os.getenv("REDIS_URL", "redis://localhost:6379"), decode_responses=True)
         q = Queue("uploads", connection=redis)
         print("✅ Redis connected successfully")
     else:
