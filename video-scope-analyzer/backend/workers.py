@@ -173,3 +173,28 @@ Return ONLY valid JSON.
         "status": "completed",
         "result": json.dumps(result)
     })
+    
+    # Save analysis for persistence
+    from datetime import datetime
+    import uuid
+    
+    analysis_id = str(uuid.uuid4())
+    created_at = datetime.utcnow().isoformat() + "Z"
+    
+    # Get original filename from file path
+    filename = os.path.basename(file_path) if file_path else "Unknown"
+    
+    # Calculate file size in MB
+    file_size_mb = round(file_size / (1024 * 1024), 2) if file_size else None
+    
+    # Save to persistent storage
+    redis.hset(f"analysis:{analysis_id}", mapping={
+        "filename": filename,
+        "created_at": created_at,
+        "transcript": transcript,
+        "scope_items": json.dumps(scope_items),
+        "project_summary": json.dumps(project_summary),
+        "file_size_mb": str(file_size_mb) if file_size_mb else ""
+    })
+    
+    log.info(f"Saved analysis {analysis_id} for file {filename}")

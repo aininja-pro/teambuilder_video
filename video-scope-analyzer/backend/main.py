@@ -6,6 +6,9 @@ from redis.asyncio import Redis as AsyncRedis
 import asyncio
 import json
 import os
+from datetime import datetime
+from typing import List, Optional
+from pydantic import BaseModel
 
 # ChatGPT's exact setup - sync Redis for RQ, async for WebSocket
 redis = Redis(host="localhost", port=6379, decode_responses=True)
@@ -158,6 +161,76 @@ async def dbg(session_id: str, pct: int):
     from workers import publish
     publish(session_id, pct, f"dbg {pct}", status="debug")
     return {"ok": True}
+
+# Persistence Models
+class SavedAnalysis(BaseModel):
+    id: str
+    filename: str
+    created_at: str
+    transcript: str
+    scope_items: List[dict]
+    project_summary: dict
+    file_size_mb: Optional[float] = None
+
+class AnalysisListItem(BaseModel):
+    id: str
+    filename: str
+    created_at: str
+    file_size_mb: Optional[float] = None
+    scope_count: int
+
+# Persistence API Endpoints
+@router.get("/api/analyses", response_model=List[AnalysisListItem])
+def get_analyses():
+    """Get list of all saved analyses"""
+    try:
+        analysis_keys = redis.keys("analysis:*")
+        analyses = []
+        
+        for key in analysis_keys:
+            analysis_id = key.replace("analysis:", "")
+            data = redis.hgetall(key)
+            if data:
+                scope_items = json.loads(data.get('scope_items', '[]'))
+                analyses.append(AnalysisListItem(
+                    id=analysis_id,
+                    filename=data.get('filename', 'Unknown'),
+                    created_at=data.get('created_at', ''),
+                    file_size_mb=float(data.get('file_size_mb', 0)) if data.get('file_size_mb') else None,
+                    scope_count=len(scope_items)
+                ))
+        
+        # Sort by creation date (newest first)
+        analyses.sort(key=lambda x: x.created_at, reverse=True)
+        return analyses
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/api/analyses/{analysis_id}", response_model=SavedAnalysis)
+def get_analysis(analysis_id: str):
+    """Get a specific analysis by ID"""
+    data = redis.hgetall(f"analysis:{analysis_id}")
+    if not data:
+        raise HTTPException(status_code=404, detail="Analysis not found")
+    
+    return SavedAnalysis(
+        id=analysis_id,
+        filename=data.get('filename', 'Unknown'),
+        created_at=data.get('created_at', ''),
+        transcript=data.get('transcript', ''),
+        scope_items=json.loads(data.get('scope_items', '[]')),
+        project_summary=json.loads(data.get('project_summary', '{}')),
+        file_size_mb=float(data.get('file_size_mb', 0)) if data.get('file_size_mb') else None
+    )
+
+@router.delete("/api/analyses/{analysis_id}")
+def delete_analysis(analysis_id: str):
+    """Delete a specific analysis"""
+    if not redis.exists(f"analysis:{analysis_id}"):
+        raise HTTPException(status_code=404, detail="Analysis not found")
+    
+    redis.delete(f"analysis:{analysis_id}")
+    return {"message": "Analysis deleted successfully"}
 
 app.include_router(router)
 

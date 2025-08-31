@@ -7,6 +7,7 @@ import TranscriptView from '@/components/TranscriptView'
 import ScopeItemsTable from '@/components/ScopeItemsTable'
 import ProjectSummary from '@/components/ProjectSummary'
 import DocumentDownload from '@/components/DocumentDownload'
+import SavedAnalyses from '@/components/SavedAnalyses'
 import { uploader, API_BASE_URL } from '@/utils/api'
 
 interface ScopeItem {
@@ -33,6 +34,7 @@ export default function Home() {
   const [projectSummary, setProjectSummary] = useState<any>(null)
   const [documents, setDocuments] = useState<{ docx: string | null; pdf: string | null }>({ docx: null, pdf: null })
   const [error, setError] = useState('')
+  const [currentAnalysisId, setCurrentAnalysisId] = useState<string | null>(null)
   const wsRef = useRef<WebSocket | null>(null)
 
   const handleFileSelect = (file: File) => {
@@ -42,6 +44,19 @@ export default function Home() {
     setScopeItems([])
     setProjectSummary(null)
     setDocuments({ docx: null, pdf: null })
+    setError('')
+    setProcessingProgress(0)
+    setCurrentAnalysisId(null)
+  }
+
+  const handleAnalysisSelected = (analysis: any) => {
+    // Load saved analysis into current view
+    setTranscript(analysis.transcript)
+    setScopeItems(analysis.scope_items)
+    setProjectSummary(analysis.project_summary)
+    setDocuments({ docx: null, pdf: null }) // Documents not saved yet
+    setCurrentAnalysisId(analysis.id)
+    setSelectedFile(null) // Clear current file selection
     setError('')
     setProcessingProgress(0)
   }
@@ -115,7 +130,7 @@ export default function Home() {
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-4xl mx-auto">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
             Video Scope Analyzer
@@ -125,19 +140,21 @@ export default function Home() {
           </p>
         </div>
 
-        <div className="grid lg:grid-cols-2 gap-8">
-          {/* Left Column - Upload and Processing */}
-          <div className="space-y-6">
-            <div>
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">Upload Job Video</h2>
-              <FileUpload 
-                onFileSelect={handleFileSelect}
-                isProcessing={isProcessing}
-              />
-            </div>
+        {/* Saved Analyses Section */}
+        <SavedAnalyses onAnalysisSelected={handleAnalysisSelected} />
+
+        {/* Single Column Layout */}
+        <div className="space-y-8">
+          {/* Upload Section */}
+          <div className="bg-white border border-gray-200 rounded-lg p-6">
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">Upload Job Video</h2>
+            <FileUpload 
+              onFileSelect={handleFileSelect}
+              isProcessing={isProcessing}
+            />
 
             {selectedFile && (
-              <div>
+              <div className="mt-6">
                 <button
                   onClick={startProcessing}
                   disabled={isProcessing}
@@ -149,14 +166,16 @@ export default function Home() {
             )}
 
             {isProcessing && (
-              <ProcessingStatus 
-                currentStep={processingStep}
-                progress={processingProgress}
-              />
+              <div className="mt-6">
+                <ProcessingStatus 
+                  currentStep={processingStep}
+                  progress={processingProgress}
+                />
+              </div>
             )}
 
             {error && (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+              <div className="mt-6 bg-red-50 border border-red-200 rounded-lg p-4">
                 <h3 className="text-red-800 font-semibold mb-2">Processing Error</h3>
                 <p className="text-red-700 text-sm">{error}</p>
                 <button
@@ -169,13 +188,26 @@ export default function Home() {
             )}
           </div>
 
-          {/* Right Column - Results */}
-          <div className="space-y-6">
-            <TranscriptView transcript={transcript} />
-            <ProjectSummary summary={projectSummary} />
-            <ScopeItemsTable items={scopeItems} />
-            <DocumentDownload documents={documents} />
-          </div>
+          {/* Results Section */}
+          {(transcript || projectSummary || scopeItems?.length > 0 || documents) && (
+            <div className="space-y-6">
+              <div className="border-t border-gray-200 pt-6">
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-xl font-semibold text-gray-900">Analysis Results</h2>
+                  {currentAnalysisId && (
+                    <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                      📁 Saved Analysis
+                    </span>
+                  )}
+                </div>
+              </div>
+              
+              <TranscriptView transcript={transcript} />
+              <ProjectSummary summary={projectSummary} />
+              <ScopeItemsTable items={scopeItems} />
+              <DocumentDownload documents={documents} />
+            </div>
+          )}
         </div>
       </div>
     </div>
