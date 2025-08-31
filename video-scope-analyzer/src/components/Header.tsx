@@ -12,13 +12,23 @@ export default function Header({ onProjectsClick, onAnalyzeVideoClick }: HeaderP
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-24">
           {/* Logo */}
-          <div className="flex items-center">
+          <div className="flex items-center" style={{ backgroundColor: 'red', padding: '2px' }}>
             <Link href="/" className="flex items-center">
               <img 
                 src="/team-builders-logo.png"
                 alt="Team Builders Logo"
-                style={{ width: 'auto', height: '24px' }}
+                style={{ 
+                  width: 'auto', 
+                  height: '24px', 
+                  display: 'block',
+                  opacity: 1,
+                  visibility: 'visible',
+                  border: '1px solid yellow'
+                }}
+                onLoad={() => console.log('Logo loaded successfully')}
+                onError={() => console.log('Logo failed to load')}
               />
+              <span style={{ color: 'white', marginLeft: '10px' }}>LOGO SHOULD BE HERE</span>
             </Link>
           </div>
 
