@@ -74,8 +74,13 @@ async def upload_chunk(
 # ChatGPT's EXACT API pattern
 @router.post("/api/upload/complete/{session_id}")
 def complete(session_id: str):
+    import logging
+    logging.warning(f"DEBUG MAIN: Complete called for session {session_id}")
+    logging.warning(f"DEBUG MAIN: Available sessions: {list(upload_sessions.keys())}")
+    
     # Assemble chunks first
     if session_id not in upload_sessions:
+        logging.error(f"DEBUG MAIN: Session {session_id} NOT FOUND!")
         raise HTTPException(status_code=404, detail="Session not found")
     
     session = upload_sessions[session_id]
@@ -87,6 +92,11 @@ def complete(session_id: str):
             chunk_path = os.path.join(session["temp_dir"], f"chunk_{i}")
             with open(chunk_path, "rb") as chunk_file:
                 final_file.write(chunk_file.read())
+    
+    # Store file path for worker
+    logging.warning(f"DEBUG MAIN: Storing file path in Redis: {final_path}")
+    redis.hset(f"jobs:{session_id}", mapping={"file_path": final_path})
+    logging.warning(f"DEBUG MAIN: Stored successfully for session {session_id}")
     
     job = q.enqueue("workers.process_session", session_id)
     return {"job_id": job.get_id()}

@@ -21,14 +21,29 @@ export default function ProjectSummary({ summary }: ProjectSummaryProps) {
     )
   }
 
-  const Section = ({ title, items, className = "" }: { title: string, items?: string[], className?: string }) => {
-    if (!items || items.length === 0) return null
+  const Section = ({ title, items, className = "" }: { title: string, items?: any, className?: string }) => {
+    if (!items) return null
+    
+    // Handle different data types - convert to array if needed
+    let itemsArray: string[] = []
+    
+    if (Array.isArray(items)) {
+      itemsArray = items
+    } else if (typeof items === 'string') {
+      // Split string by common delimiters
+      itemsArray = items.split(/[,;•\n]/).map(item => item.trim()).filter(item => item.length > 0)
+    } else if (typeof items === 'object') {
+      // Handle object - use values or convert to string
+      itemsArray = Object.values(items).filter(item => item && typeof item === 'string')
+    }
+    
+    if (itemsArray.length === 0) return null
     
     return (
       <div className={className}>
         <h4 className="font-semibold text-gray-800 mb-2">{title}</h4>
         <ul className="space-y-1">
-          {items.map((item, index) => (
+          {itemsArray.map((item, index) => (
             <li key={index} className="text-sm text-gray-600 flex items-start">
               <span className="text-gray-400 mr-2">•</span>
               <span>{item}</span>
