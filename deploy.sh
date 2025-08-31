@@ -1,26 +1,23 @@
-#!/bin/bash
-set -e
+#!/usr/bin/env bash
+set -euxo pipefail
 
 echo "🚀 Building TeamBuilders Video App..."
 
-# Install Python dependencies
-echo "📦 Installing Python dependencies..."
+# Python deps
 pip install -r requirements.txt
 
-# Install Node.js dependencies first
-echo "📦 Installing Node.js dependencies..."
-cd video-scope-analyzer
-npm install
-cd ..
+# Frontend build (static export)
+pushd video-scope-analyzer
+npm ci
+npm run build
+npm run export
+# ✅ Guard: ensure the logo exists in the export
+test -f out/assets/team-builders-logo.png || { echo "❌ Logo missing in export"; ls -R out | sed -n '1,200p'; exit 1; }
+popd
 
-# Build React app
-echo "🏗️ Building React app..."
-npm run build --prefix ./video-scope-analyzer
-
-# Copy React output to backend/static directory
-echo "📁 Copying React build to FastAPI static directory..."
-rm -rf ./video-scope-analyzer/backend/static
-mkdir -p ./video-scope-analyzer/backend/static
-cp -r ./video-scope-analyzer/out/* ./video-scope-analyzer/backend/static/
+# Publish the export for FastAPI to serve
+rm -rf video-scope-analyzer/backend/static
+mkdir -p video-scope-analyzer/backend/static
+rsync -a --delete video-scope-analyzer/out/ video-scope-analyzer/backend/static/
 
 echo "✅ Build complete!"
