@@ -4,6 +4,9 @@ const nextConfig: NextConfig = {
   images: {
     qualities: [75, 100],
   },
+  output: 'export',
+  trailingSlash: true,
+  skipTrailingSlashRedirect: true,
   async rewrites() {
     return [
       {
