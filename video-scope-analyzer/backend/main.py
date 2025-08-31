@@ -1,6 +1,7 @@
 from fastapi import FastAPI, APIRouter, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import JSONResponse
 from rq import Queue
 from redis import Redis
 from redis.asyncio import Redis as AsyncRedis
@@ -38,6 +39,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.exception_handler(FileNotFoundError)
+async def not_found_handler(request, exc):
+    return JSONResponse(status_code=404, content={"detail": "Frontend build not found"})
 
 router = APIRouter()
 
@@ -254,26 +259,21 @@ def delete_analysis(analysis_id: str):
 
 from fastapi.responses import FileResponse
 
-# Mount API routes first (before catch-all)
+# Mount static folder
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+# Mount API routes
 app.include_router(router)
 
-# Mount static files for document downloads  
-app.mount("/documents", StaticFiles(directory="static"), name="documents")
-
-# Serve React frontend
+# Serve frontend index.html at root
 @app.get("/")
-def read_index():
-    return FileResponse(os.path.join("static", "index.html"))
+def serve_frontend():
+    return FileResponse("static/index.html")
 
-# Catch-all route to support React Router (must be last)
+# Catch-all for React router
 @app.get("/{full_path:path}")
-def catch_all(full_path: str):
-    # Don't catch API routes
-    if full_path.startswith("api/"):
-        raise HTTPException(status_code=404, detail="API endpoint not found")
-    
-    # Serve React app for all other routes
-    return FileResponse(os.path.join("static", "index.html"))
+def serve_react_app(full_path: str):
+    return FileResponse("static/index.html")
 
 if __name__ == "__main__":
     import uvicorn
