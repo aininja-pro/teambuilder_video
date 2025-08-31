@@ -3,18 +3,18 @@ set -e
 
 echo "🚀 Starting TeamBuilders Video App..."
 
-# Install and start Redis locally
-echo "🔴 Installing Redis..."
-apt-get update && apt-get install -y redis-server ffmpeg
-redis-server --daemonize yes --port 6379
-
-# Wait for Redis to start
-sleep 2
-
-# Start RQ worker in background
-echo "👷 Starting background worker..."
+# Go to backend directory  
 cd video-scope-analyzer/backend
-rq worker uploads --url redis://localhost:6379 &
+
+# Check if REDIS_URL is provided, otherwise run in simple mode
+if [ -z "$REDIS_URL" ]; then
+    echo "⚠️ No REDIS_URL provided, running in simple mode..."
+    export USE_REDIS=false
+else
+    echo "✅ Using Redis at $REDIS_URL"
+    # Start RQ worker in background
+    rq worker uploads --url $REDIS_URL &
+fi
 
 # Start FastAPI server
 echo "🌐 Starting server on port $PORT..."

@@ -11,10 +11,23 @@ from datetime import datetime
 from typing import List, Optional
 from pydantic import BaseModel
 
-# ChatGPT's exact setup - sync Redis for RQ, async for WebSocket
-redis = Redis(host="localhost", port=6379, decode_responses=True)
-redis_async = AsyncRedis.from_url("redis://localhost:6379/0", decode_responses=True)
-q = Queue("uploads", connection=redis)
+# Redis setup with fallback for deployment
+import os
+redis = None
+redis_async = None
+q = None
+
+try:
+    if os.getenv('USE_REDIS', 'true').lower() != 'false':
+        redis = Redis(host="localhost", port=6379, decode_responses=True)
+        redis_async = AsyncRedis.from_url("redis://localhost:6379/0", decode_responses=True)
+        q = Queue("uploads", connection=redis)
+        print("✅ Redis connected successfully")
+    else:
+        print("⚠️ Running without Redis persistence")
+except Exception as e:
+    print(f"⚠️ Redis not available, running in simple mode: {e}")
+    redis = None
 
 app = FastAPI()
 
@@ -97,13 +110,17 @@ def complete(session_id: str):
             with open(chunk_path, "rb") as chunk_file:
                 final_file.write(chunk_file.read())
     
-    # Store file path for worker
-    logging.warning(f"DEBUG MAIN: Storing file path in Redis: {final_path}")
-    redis.hset(f"jobs:{session_id}", mapping={"file_path": final_path})
-    logging.warning(f"DEBUG MAIN: Stored successfully for session {session_id}")
-    
-    job = q.enqueue("workers.process_session", session_id)
-    return {"job_id": job.get_id()}
+    if redis and q:
+        # Store file path for worker
+        logging.warning(f"DEBUG MAIN: Storing file path in Redis: {final_path}")
+        redis.hset(f"jobs:{session_id}", mapping={"file_path": final_path})
+        logging.warning(f"DEBUG MAIN: Stored successfully for session {session_id}")
+        
+        job = q.enqueue("workers.process_session", session_id)
+        return {"job_id": job.get_id()}
+    else:
+        # Simple mode - return mock result for now
+        return {"job_id": "simple-mode", "message": "Redis not available - using simple mode"}
 
 # ChatGPT's EXACT robust WebSocket pattern
 @router.websocket("/ws/{session_id}")
