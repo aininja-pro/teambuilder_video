@@ -259,8 +259,12 @@ def delete_analysis(analysis_id: str):
 
 from fastapi.responses import FileResponse
 
-# Mount static folder
+# Mount static folders
 app.mount("/static", StaticFiles(directory="static"), name="static")
+# Mount Next.js assets 
+app.mount("/_next", StaticFiles(directory="static/_next"), name="nextjs_assets")
+# Mount other assets
+app.mount("/assets", StaticFiles(directory="static/assets"), name="assets")
 
 # Mount API routes
 app.include_router(router)
