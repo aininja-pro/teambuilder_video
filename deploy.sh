@@ -7,8 +7,14 @@ echo "🚀 Building TeamBuilders Video App..."
 echo "📦 Installing Python dependencies..."
 pip install -r requirements.txt
 
+# Install Node.js dependencies first
+echo "📦 Installing Node.js dependencies..."
+cd video-scope-analyzer
+npm install
+cd ..
+
 # Build React app
-echo "📦 Building React app..."
+echo "🏗️ Building React app..."
 npm run build --prefix ./video-scope-analyzer
 
 # Copy React output to backend/static directory
