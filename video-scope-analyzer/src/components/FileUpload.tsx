@@ -86,24 +86,18 @@ export default function FileUpload({ onFileSelect, isProcessing = false }: FileU
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
   }
 
-  const getFileWarning = (file: File) => {
+  const getFileInfo = (file: File) => {
     const sizeMB = file.size / (1024 * 1024)
-    const isMovFile = file.name.toLowerCase().endsWith('.mov')
     
-    if (isMovFile && sizeMB > 200) {
+    if (sizeMB > 25) {
       return {
-        type: 'error' as const,
-        message: 'Large MOV files often fail. Consider converting to MP4 or extracting audio first.'
+        type: 'info' as const,
+        message: '📦 Large file detected - will be automatically compressed for processing'
       }
-    } else if (isMovFile && sizeMB > 100) {
+    } else if (sizeMB < 10) {
       return {
-        type: 'warning' as const,
-        message: 'MOV files may need conversion. MP4 format is more reliable.'
-      }
-    } else if (sizeMB > 300) {
-      return {
-        type: 'warning' as const,
-        message: 'Large file detected. Processing will take longer.'
+        type: 'success' as const,
+        message: '⚡ Great file size - will process quickly!'
       }
     }
     
@@ -122,27 +116,24 @@ export default function FileUpload({ onFileSelect, isProcessing = false }: FileU
     <div className="w-full max-w-4xl mx-auto">
       {!selectedFile ? (
         <div
-          className={`relative border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+          className={`relative border-2 border-dashed rounded-lg p-4 text-center transition-colors ${
             dragActive
-              ? 'border-blue-400 bg-blue-50'
-              : 'border-gray-300 hover:border-gray-400'
+              ? 'border-green-400 bg-green-50'
+              : 'border-gray-300 hover:border-green-300'
           } ${isProcessing ? 'opacity-50 pointer-events-none' : ''}`}
           onDragEnter={handleDrag}
           onDragLeave={handleDrag}
           onDragOver={handleDrag}
           onDrop={handleDrop}
         >
-          <Upload className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-          <h3 className="text-lg font-semibold text-gray-700 mb-2">
-            Upload Job Site Video or Audio
-          </h3>
-          <p className="text-gray-500 mb-4">
-            Drag and drop your file here, or click to browse
+          <Upload className="mx-auto h-8 w-8 text-gray-400 mb-2" />
+          <p className="text-gray-600 mb-3">
+            Drag and drop your video/audio file here, or click to browse
           </p>
           
           <button
             onClick={() => fileInputRef.current?.click()}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-md font-medium transition-colors"
+            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md font-medium transition-colors shadow-sm"
             disabled={isProcessing}
           >
             Choose File
@@ -156,8 +147,8 @@ export default function FileUpload({ onFileSelect, isProcessing = false }: FileU
             className="hidden"
           />
           
-          <p className="text-xs text-gray-400 mt-4">
-            Supports MP4, MOV, MP3, WAV, and other formats • Max 500MB
+          <p className="text-xs text-gray-400 mt-2">
+            MP4, MOV, MP3, WAV formats • Max 500MB
           </p>
         </div>
       ) : (
@@ -169,19 +160,19 @@ export default function FileUpload({ onFileSelect, isProcessing = false }: FileU
                 <h4 className="font-semibold text-gray-900">{selectedFile.name}</h4>
                 <p className="text-sm text-gray-500">{formatFileSize(selectedFile.size)}</p>
                 
-                {/* File warnings */}
+                {/* File info */}
                 {(() => {
-                  const warning = getFileWarning(selectedFile)
-                  if (!warning) return null
+                  const info = getFileInfo(selectedFile)
+                  if (!info) return null
                   
                   return (
                     <div className={`flex items-center space-x-2 mt-2 p-2 rounded-md ${
-                      warning.type === 'error' 
-                        ? 'bg-red-50 text-red-700' 
-                        : 'bg-yellow-50 text-yellow-700'
+                      info.type === 'success' 
+                        ? 'bg-green-50 text-green-700 border border-green-200' 
+                        : 'bg-blue-50 text-blue-700 border border-blue-200'
                     }`}>
-                      <AlertCircle className="h-4 w-4" />
-                      <span className="text-sm">{warning.message}</span>
+                      <CheckCircle className="h-4 w-4" />
+                      <span className="text-sm">{info.message}</span>
                     </div>
                   )
                 })()}

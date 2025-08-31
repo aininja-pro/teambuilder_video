@@ -8,6 +8,7 @@ import ScopeItemsTable from '@/components/ScopeItemsTable'
 import ProjectSummary from '@/components/ProjectSummary'
 import DocumentDownload from '@/components/DocumentDownload'
 import SavedAnalyses from '@/components/SavedAnalyses'
+import Header from '@/components/Header'
 import { uploader, API_BASE_URL } from '@/utils/api'
 
 interface ScopeItem {
@@ -35,6 +36,7 @@ export default function Home() {
   const [documents, setDocuments] = useState<{ docx: string | null; pdf: string | null }>({ docx: null, pdf: null })
   const [error, setError] = useState('')
   const [currentAnalysisId, setCurrentAnalysisId] = useState<string | null>(null)
+  const [showSavedAnalyses, setShowSavedAnalyses] = useState(false)
   const wsRef = useRef<WebSocket | null>(null)
 
   const handleFileSelect = (file: File) => {
@@ -49,10 +51,38 @@ export default function Home() {
     setCurrentAnalysisId(null)
   }
 
+  const resetToFresh = () => {
+    // Reset everything to initial upload state
+    setSelectedFile(null)
+    setIsProcessing(false)
+    setProcessingStep('')
+    setProcessingProgress(0)
+    setTranscript('')
+    setScopeItems([])
+    setProjectSummary(null)
+    setDocuments({ docx: null, pdf: null })
+    setError('')
+    setCurrentAnalysisId(null)
+    setShowSavedAnalyses(false)
+    
+    // Close any WebSocket connections
+    if (wsRef.current) {
+      wsRef.current.close()
+      wsRef.current = null
+    }
+  }
+
   const handleAnalysisSelected = (analysis: any) => {
     // Load saved analysis into current view
     setTranscript(analysis.transcript)
-    setScopeItems(analysis.scope_items)
+    // Sort scope items when loading saved analysis
+    const sortedScopeItems = (analysis.scope_items || []).sort((a: any, b: any) => {
+      if (a.mainCode !== b.mainCode) {
+        return a.mainCode.localeCompare(b.mainCode)
+      }
+      return a.subCode.localeCompare(b.subCode)
+    })
+    setScopeItems(sortedScopeItems)
     setProjectSummary(analysis.project_summary)
     setDocuments({ docx: null, pdf: null }) // Documents not saved yet
     setCurrentAnalysisId(analysis.id)
@@ -91,7 +121,14 @@ export default function Home() {
         (result) => {
           console.log('Processing complete:', result)
           setTranscript(result.transcript || '')
-          setScopeItems(result.scope_items || [])
+          // Sort scope items by main code, then by sub code
+          const sortedScopeItems = (result.scope_items || []).sort((a: any, b: any) => {
+            if (a.mainCode !== b.mainCode) {
+              return a.mainCode.localeCompare(b.mainCode)
+            }
+            return a.subCode.localeCompare(b.subCode)
+          })
+          setScopeItems(sortedScopeItems)
           setProjectSummary(result.project_summary || null)
           setDocuments({
             docx: result.documents?.docx ? `${API_BASE_URL}${result.documents.docx}` : null,
@@ -129,7 +166,12 @@ export default function Home() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <>
+      <Header 
+        onProjectsClick={() => setShowSavedAnalyses(!showSavedAnalyses)}
+        onAnalyzeVideoClick={resetToFresh}
+      />
+      <div className="container mx-auto px-4 py-8">
       <div className="max-w-4xl mx-auto">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
@@ -141,13 +183,20 @@ export default function Home() {
         </div>
 
         {/* Saved Analyses Section */}
-        <SavedAnalyses onAnalysisSelected={handleAnalysisSelected} />
+        <SavedAnalyses 
+          onAnalysisSelected={handleAnalysisSelected} 
+          show={showSavedAnalyses}
+          onToggle={() => setShowSavedAnalyses(!showSavedAnalyses)}
+        />
 
         {/* Single Column Layout */}
         <div className="space-y-8">
           {/* Upload Section */}
-          <div className="bg-white border border-gray-200 rounded-lg p-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">Upload Job Video</h2>
+          <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
+            <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center">
+              <span className="w-1 h-6 bg-green-500 rounded-full mr-3"></span>
+              Upload Job Video
+            </h2>
             <FileUpload 
               onFileSelect={handleFileSelect}
               isProcessing={isProcessing}
@@ -158,7 +207,7 @@ export default function Home() {
                 <button
                   onClick={startProcessing}
                   disabled={isProcessing}
-                  className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
+                  className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white font-semibold py-3 px-6 rounded-lg transition-colors shadow-sm"
                 >
                   {isProcessing ? 'Processing...' : 'Start Analysis'}
                 </button>
@@ -191,9 +240,12 @@ export default function Home() {
           {/* Results Section */}
           {(transcript || projectSummary || scopeItems?.length > 0 || documents) && (
             <div className="space-y-6">
-              <div className="border-t border-gray-200 pt-6">
+              <div className="border-t border-green-200 pt-6">
                 <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-xl font-semibold text-gray-900">Analysis Results</h2>
+                  <h2 className="text-xl font-semibold text-gray-900 flex items-center">
+                    <span className="w-1 h-6 bg-green-500 rounded-full mr-3"></span>
+                    Analysis Results
+                  </h2>
                   {currentAnalysisId && (
                     <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
                       📁 Saved Analysis
@@ -210,6 +262,7 @@ export default function Home() {
           )}
         </div>
       </div>
-    </div>
+      </div>
+    </>
   )
 }

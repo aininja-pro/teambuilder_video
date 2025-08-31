@@ -19,8 +19,11 @@ interface ScopeItemsTableProps {
 export default function ScopeItemsTable({ items }: ScopeItemsTableProps) {
   if (!items || items.length === 0) {
     return (
-      <div className="bg-white border border-gray-200 rounded-lg p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Scope Items</h3>
+      <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+          <span className="w-1 h-5 bg-green-500 rounded-full mr-3"></span>
+          Scope Items
+        </h3>
         <div className="text-gray-500 text-center py-8">
           Scope items will appear here after processing
         </div>
@@ -29,13 +32,14 @@ export default function ScopeItemsTable({ items }: ScopeItemsTableProps) {
   }
 
   return (
-    <div className="bg-white border border-gray-200 rounded-lg p-6">
-      <h3 className="text-lg font-semibold text-gray-900 mb-4">
+    <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
+      <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+        <span className="w-1 h-5 bg-green-500 rounded-full mr-3"></span>
         Scope Items ({items.length})
       </h3>
       <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
+          <thead className="bg-green-50">
             <tr>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Code

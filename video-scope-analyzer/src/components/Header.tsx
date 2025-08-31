@@ -1,43 +1,50 @@
 import Image from 'next/image'
 import Link from 'next/link'
 
-export default function Header() {
+interface HeaderProps {
+  onProjectsClick?: () => void
+  onAnalyzeVideoClick?: () => void
+}
+
+export default function Header({ onProjectsClick, onAnalyzeVideoClick }: HeaderProps) {
   return (
-    <header className="bg-black border-b border-gray-800">
+    <header className="bg-black border-b border-gray-800 sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
-          {/* Logo and Title */}
-          <div className="flex items-center space-x-4">
-            <Link href="/" className="flex items-center space-x-4">
+        <div className="flex items-center justify-between h-24">
+          {/* Logo */}
+          <div className="flex items-center">
+            <Link href="/" className="flex items-center">
               <Image
                 src="/assets/team-builders-logo.png"
                 alt="Team Builders Logo"
-                width={48}
-                height={48}
-                className="h-12 w-12"
+                width={240}
+                height={40}
+                className="h-10"
                 priority
                 quality={100}
               />
-              <div className="text-white">
-                <h1 className="text-xl font-bold">Video Scope Analyzer</h1>
-              </div>
             </Link>
           </div>
 
-          {/* Navigation (future use) */}
+          {/* Centered Title */}
+          <div className="absolute left-1/2 transform -translate-x-1/2">
+            <h1 className="text-xl font-bold text-white">Video Scope Analyzer</h1>
+          </div>
+
+          {/* Navigation */}
           <nav className="hidden md:flex items-center space-x-8">
-            <Link 
-              href="/" 
+            <button 
+              onClick={onAnalyzeVideoClick}
               className="text-gray-300 hover:text-white px-3 py-2 rounded-md text-sm font-medium transition-colors"
             >
               Analyze Video
-            </Link>
-            <Link 
-              href="/projects" 
+            </button>
+            <button 
+              onClick={onProjectsClick}
               className="text-gray-300 hover:text-white px-3 py-2 rounded-md text-sm font-medium transition-colors"
             >
               Projects
-            </Link>
+            </button>
           </nav>
 
           {/* Mobile menu button (future use) */}

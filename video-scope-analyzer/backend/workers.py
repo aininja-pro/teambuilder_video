@@ -119,23 +119,143 @@ def process_session(session_id: str):
     # Parse (70-90%) - Real GPT-4 scope parsing
     publish(session_id, 75, "Analyzing transcript for scope items...")
     
-    # Your original TeamBuilders cost codes
+    # Complete TeamBuilders cost codes
     cost_codes = {
-        "01 General Conditions": {"1100": "Permit", "1200": "Project Oversight"},
-        "02 Site/Demo": {"1700": "Dump & Trash Removal", "1800": "Demolition"},
-        "05 Rough Carpentry": {"3000": "Floor & Stair Framing", "3100": "Wall Framing"},
-        "08 Electrical": {"4100": "Electrical System"},
-        "09 Plumbing": {"4200": "Plumbing System"},
+        "01 General Conditions": {
+            "1100": "Permit",
+            "1200": "Project Oversight (Management, Coordination, Procurement)",
+            "1600": "Tool & Equipment Rental"
+        },
+        "02 Site/Demo": {
+            "1700": "Dump & Trash Removal",
+            "1800": "Demolition (Wall, Deck, Roof, Flooring, Kitchen)",
+            "1900": "Prep Work & Dust Protection"
+        },
+        "03 Excavation/Landscape": {
+            "2100": "Landscaping"
+        },
+        "04 Concrete/Masonry": {
+            "2200": "Concrete Footings & Foundations",
+            "2250": "Concrete Flatwork",
+            "2299": "Concrete/Masonry Specialties"
+        },
+        "05 Rough Carpentry": {
+            "3000": "Floor & Stair Framing",
+            "3100": "Wall Framing",
+            "3200": "Roof Framing"
+        },
+        "06 Doors/Windows": {
+            "3500": "Exterior Doors",
+            "3600": "Windows"
+        },
+        "07 Mechanical": {
+            "4000": "HVAC System"
+        },
+        "08 Electrical": {
+            "4100": "Electrical System"
+        },
+        "09 Plumbing": {
+            "4200": "Plumbing System",
+            "4250": "Plumbing Fixtures"
+        },
+        "10 Wall/Ceiling Coverings": {
+            "5000": "Insulation",
+            "5100": "Drywall",
+            "5200": "Paint"
+        },
+        "11 Finish Carpentry": {
+            "5300": "Interior Doors",
+            "5350": "Interior Door Hardware",
+            "5400": "Interior Trim",
+            "5450": "Interior Trim Specialties"
+        },
+        "12 Cabinets/Vanities/Tops": {
+            "5600": "Kitchen Cabinets",
+            "5650": "Bathroom Vanities",
+            "5680": "Built-In Cabinetry",
+            "5699": "Cabinet Hardware Specialties",
+            "5700": "Countertops"
+        },
+        "13 Flooring/Tile": {
+            "5800": "Flooring"
+        },
+        "14 Specialties": {
+            "6000": "Closet Shelving",
+            "6200": "Appliances",
+            "6300": "Specialty Glass"
+        },
+        "15 Decking": {
+            "7000": "Decking"
+        },
+        "16 Fencing": {},
+        "17 Exterior Facade": {
+            "7200": "House Wrap",
+            "7220": "Vinyl Siding",
+            "7240": "Luxury Siding"
+        },
+        "18 Soffit/Fascia/Gutters": {
+            "7300": "Soffit/Fascia",
+            "7340": "Gutters"
+        },
+        "19 Roofing": {
+            "7400": "Asphalt Roofing"
+        }
     }
     
     system_prompt = f"""
-You are a construction estimator. Analyze this transcript and extract scope items using TeamBuilders cost codes.
+You are an expert construction estimator specializing in TeamBuilders cost code classification. Analyze the following transcript from a job site video and extract scope items organized by TeamBuilders cost codes.
 
-Cost Codes: {json.dumps(cost_codes)}
+TeamBuilders Cost Code Structure: {json.dumps(cost_codes)}
 
-Return JSON with 'scopeItems' and 'projectSummary' keys. Each scope item should have mainCode, mainCategory, subCode, subCategory, description, and details (material, location, quantity, notes).
+Instructions:
+1. CAREFULLY analyze the transcript for construction activities, materials, and work being performed
+2. Match each identified item to the MOST SPECIFIC TeamBuilders subcode (4-digit) when possible
+3. If an exact subcode match isn't clear, use the main category code (01-19)
+4. Extract SPECIFIC details mentioned including:
+   - Quantities (if mentioned)
+   - Materials specified
+   - Dimensions or measurements
+   - Location in the building
+   - Any special requirements or notes
+5. 🔍 EXHAUSTIVENESS REQUIREMENT: Carefully and systematically extract every distinct construction-related activity, material, or scope detail. Do not omit or skip any mention, no matter how minor. Return a separate JSON object for each unique task or item referenced.
+6. If there is uncertainty, err on the side of inclusion, using the closest main code category when a subcode is unclear.
+7. Do NOT invent or assume items not clearly stated or shown in the transcript
 
-Project summary should have: sentiment, overview, keyRequirements, concerns, decisionPoints, importantNotes.
+Key Matching Guidelines:
+- Permits, inspections, project management → 01 General Conditions
+- Any demolition or removal work → 02 Site/Demo
+- Foundation, footings, slabs → 04 Concrete/Masonry
+- Framing (floor, wall, roof) → 05 Rough Carpentry
+- Door and window installation → 06 Doors/Windows
+- HVAC, furnace, ductwork → 07 Mechanical
+- Electrical wiring, fixtures, outlets → 08 Electrical
+- Plumbing pipes, fixtures, water heaters → 09 Plumbing
+- Insulation, drywall, painting → 10 Wall/Ceiling Coverings
+- Interior doors, trim, molding → 11 Finish Carpentry
+- Cabinets, countertops, vanities → 12 Cabinets/Vanities/Tops
+- Flooring materials (LVT, carpet, tile) → 13 Flooring/Tile
+- Appliances, mirrors, shelving → 14 Specialties
+- Deck construction → 15 Decking
+- Siding, house wrap → 17 Exterior Facade
+- Soffit, fascia, gutters → 18 Soffit/Fascia/Gutters
+- Roofing materials and work → 19 Roofing
+
+Return JSON with 'scopeItems' and 'projectSummary' keys:
+
+scopeItems: Array of objects with:
+- mainCode: Two-digit code (e.g., "02")
+- mainCategory: Main category name (e.g., "Site/Demo")
+- subCode: Four-digit subcode (e.g., "1800")
+- subCategory: Subcategory name (e.g., "Demolition")
+- description: Clear description of the work
+- details: Object with material, location, quantity, notes
+
+projectSummary: Object with:
+- overview: Brief project description
+- keyRequirements: Array of main requirements
+- concerns: Array of potential issues or challenges
+- decisionPoints: Array of decisions that need to be made
+- importantNotes: Array of critical information
 
 Return ONLY valid JSON.
 """
@@ -146,7 +266,7 @@ Return ONLY valid JSON.
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": f"Transcript: {transcript}"}
         ],
-        temperature=0.1,
+        temperature=0,
         max_tokens=3000,
         response_format={"type": "json_object"}
     )

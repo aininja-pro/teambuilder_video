@@ -14,8 +14,11 @@ export default function DocumentDownload({ documents }: DocumentDownloadProps) {
 
   if (!hasDocuments) {
     return (
-      <div className="bg-white border border-gray-200 rounded-lg p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Download Documents</h3>
+      <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+          <span className="w-1 h-5 bg-green-500 rounded-full mr-3"></span>
+          Download Documents
+        </h3>
         <div className="text-gray-500 text-center py-8">
           Documents will be available for download after processing
         </div>
@@ -24,18 +27,21 @@ export default function DocumentDownload({ documents }: DocumentDownloadProps) {
   }
 
   return (
-    <div className="bg-white border border-gray-200 rounded-lg p-6">
-      <h3 className="text-lg font-semibold text-gray-900 mb-4">Download Documents</h3>
+    <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
+      <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+        <span className="w-1 h-5 bg-green-500 rounded-full mr-3"></span>
+        Download Documents
+      </h3>
       
       <div className="space-y-3">
         {documents.docx && (
           <a
             href={documents.docx}
             download
-            className="flex items-center justify-between p-3 border border-gray-200 rounded-md hover:bg-gray-50 transition-colors"
+            className="flex items-center justify-between p-3 border border-green-200 rounded-md hover:bg-green-50 transition-colors"
           >
             <div className="flex items-center space-x-3">
-              <FileText className="h-5 w-5 text-blue-600" />
+              <FileText className="h-5 w-5 text-green-600" />
               <span className="font-medium text-gray-700">Scope Summary.docx</span>
             </div>
             <Download className="h-4 w-4 text-gray-400" />
@@ -46,10 +52,10 @@ export default function DocumentDownload({ documents }: DocumentDownloadProps) {
           <a
             href={documents.pdf}
             download
-            className="flex items-center justify-between p-3 border border-gray-200 rounded-md hover:bg-gray-50 transition-colors"
+            className="flex items-center justify-between p-3 border border-green-200 rounded-md hover:bg-green-50 transition-colors"
           >
             <div className="flex items-center space-x-3">
-              <File className="h-5 w-5 text-red-600" />
+              <File className="h-5 w-5 text-green-600" />
               <span className="font-medium text-gray-700">Scope Summary.pdf</span>
             </div>
             <Download className="h-4 w-4 text-gray-400" />
