@@ -252,30 +252,28 @@ def delete_analysis(analysis_id: str):
     redis.delete(f"analysis:{analysis_id}")
     return {"message": "Analysis deleted successfully"}
 
-# Mount static files for document downloads
-app.mount("/static", StaticFiles(directory="static"), name="static")
+from fastapi.responses import FileResponse
 
-# Serve React frontend from production build
-import os
-if os.path.exists("../.next"):
-    # Development mode - Next.js handles frontend
-    pass
-else:
-    # Production mode - serve built React app
-    try:
-        # Check multiple possible build locations
-        if os.path.exists("../out"):
-            app.mount("/", StaticFiles(directory="../out", html=True), name="frontend")
-            print("✅ Serving React frontend from ../out")
-        elif os.path.exists("../../video-scope-analyzer/out"):
-            app.mount("/", StaticFiles(directory="../../video-scope-analyzer/out", html=True), name="frontend")
-            print("✅ Serving React frontend from ../../video-scope-analyzer/out")
-        else:
-            print("⚠️ React build folder not found")
-    except Exception as e:
-        print(f"⚠️ Could not serve frontend: {e}")
-
+# Mount API routes first (before catch-all)
 app.include_router(router)
+
+# Mount static files for document downloads  
+app.mount("/documents", StaticFiles(directory="static"), name="documents")
+
+# Serve React frontend
+@app.get("/")
+def read_index():
+    return FileResponse(os.path.join("static", "index.html"))
+
+# Catch-all route to support React Router (must be last)
+@app.get("/{full_path:path}")
+def catch_all(full_path: str):
+    # Don't catch API routes
+    if full_path.startswith("api/"):
+        raise HTTPException(status_code=404, detail="API endpoint not found")
+    
+    # Serve React app for all other routes
+    return FileResponse(os.path.join("static", "index.html"))
 
 if __name__ == "__main__":
     import uvicorn

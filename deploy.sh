@@ -15,4 +15,8 @@ npm install
 echo "🏗️ Building React app..."
 npm run build
 
+echo "📁 Copying React build to FastAPI static directory..."
+# Copy React build output to FastAPI static directory
+cp -r ./out ./backend/static
+
 echo "✅ Build complete!"
