@@ -260,9 +260,14 @@ def delete_analysis(analysis_id: str):
 from fastapi.responses import FileResponse
 
 # Mount the React build output - this serves CSS, JS, and other assets
-app.mount("/_next", StaticFiles(directory="static/_next"), name="nextjs_assets")
-app.mount("/static", StaticFiles(directory="static/static"), name="static_assets") 
-app.mount("/documents", StaticFiles(directory="static"), name="documents")
+if os.path.exists("static/_next"):
+    app.mount("/_next", StaticFiles(directory="static/_next"), name="nextjs_assets")
+
+if os.path.exists("static/static"):
+    app.mount("/static", StaticFiles(directory="static/static"), name="static_assets")
+
+if os.path.exists("static"):
+    app.mount("/documents", StaticFiles(directory="static"), name="documents")
 
 # Mount API routes
 app.include_router(router)
