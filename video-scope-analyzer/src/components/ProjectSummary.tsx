@@ -12,8 +12,11 @@ interface ProjectSummaryProps {
 export default function ProjectSummary({ summary }: ProjectSummaryProps) {
   if (!summary) {
     return (
-      <div className="bg-white border border-gray-200 rounded-lg p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Project Summary</h3>
+      <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+          <span className="w-1 h-5 bg-green-500 rounded-full mr-3"></span>
+          Project Summary
+        </h3>
         <div className="text-gray-500 text-center py-8">
           Project summary will appear here after processing
         </div>

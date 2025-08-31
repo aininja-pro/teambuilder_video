@@ -279,7 +279,151 @@ Return ONLY valid JSON.
     
     # Docs (90-100%)
     publish(session_id, 95, "Generating documents...")
-    time.sleep(1)
+    
+    try:
+        # Generate documents with real data
+        filename = os.path.basename(file_path) if file_path else "Unknown"
+        job_name = os.path.splitext(filename)[0] if filename else "Video Analysis"
+        
+        # Import document libraries  
+        from docx import Document
+        from docx.shared import Inches, Pt
+        from docx.enum.text import WD_ALIGN_PARAGRAPH
+        from datetime import datetime
+        
+        # Create DOCX document
+        doc = Document()
+        
+        # Add title
+        title = doc.add_heading(f'TeamBuilders Scope Summary - {job_name}', 0)
+        title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        
+        # Add date
+        doc.add_paragraph(f'Generated: {datetime.now().strftime("%B %d, %Y at %I:%M %p")}')
+        doc.add_paragraph('') # spacing
+        
+        # Add project summary if available
+        if project_summary and project_summary.get('overview'):
+            doc.add_heading('Project Overview', level=1)
+            doc.add_paragraph(project_summary['overview'])
+            doc.add_paragraph('')
+        
+        # Add scope items - sort by category number first
+        if scope_items:
+            # Sort scope items by main code, then sub code (same as UI)
+            sorted_scope_items = sorted(scope_items, key=lambda x: (
+                int(x.get('mainCode', '99')), 
+                int(x.get('subCode', '9999'))
+            ))
+            
+            doc.add_heading('Scope Items', level=1)
+            
+            for item in sorted_scope_items:
+                # Item header (no numbering, just category codes)
+                p = doc.add_paragraph()
+                p.add_run(f"{item.get('mainCode', 'XX')} {item.get('mainCategory', 'Unknown')} - {item.get('subCode', 'XXXX')} {item.get('subCategory', 'Unknown')}").bold = True
+                
+                # Description
+                if item.get('description'):
+                    doc.add_paragraph(f"Description: {item['description']}", style='List Bullet')
+                
+                # Details
+                details = item.get('details', {})
+                if details:
+                    if details.get('material'):
+                        doc.add_paragraph(f"Material: {details['material']}", style='List Bullet')
+                    if details.get('location'):
+                        doc.add_paragraph(f"Location: {details['location']}", style='List Bullet')
+                    if details.get('quantity'):
+                        doc.add_paragraph(f"Quantity: {details['quantity']}", style='List Bullet')
+                    if details.get('notes'):
+                        doc.add_paragraph(f"Notes: {details['notes']}", style='List Bullet')
+                
+                doc.add_paragraph('')  # spacing
+        
+        # Save DOCX
+        static_dir = "/Users/richardrierson/Desktop/Projects/TeamBuilders/video-scope-analyzer/backend/static"
+        os.makedirs(static_dir, exist_ok=True)
+        
+        docx_filename = f"{session_id}_scope_summary.docx"
+        docx_path = os.path.join(static_dir, docx_filename)
+        doc.save(docx_path)
+        
+        publish(session_id, 97, "Word document generated...")
+        
+        # Generate PDF document
+        from reportlab.lib.pagesizes import letter
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+        from reportlab.lib.styles import getSampleStyleSheet
+        from reportlab.lib.units import inch
+        
+        pdf_filename = f"{session_id}_scope_summary.pdf"
+        pdf_path = os.path.join(static_dir, pdf_filename)
+        
+        doc_pdf = SimpleDocTemplate(pdf_path, pagesize=letter)
+        styles = getSampleStyleSheet()
+        story = []
+        
+        # Title
+        story.append(Paragraph(f"TeamBuilders Scope Summary - {job_name}", styles['Title']))
+        story.append(Spacer(1, 12))
+        story.append(Paragraph(f"Generated: {datetime.now().strftime('%B %d, %Y at %I:%M %p')}", styles['Normal']))
+        story.append(Spacer(1, 24))
+        
+        # Project overview
+        if project_summary and project_summary.get('overview'):
+            story.append(Paragraph("Project Overview", styles['Heading1']))
+            story.append(Paragraph(project_summary['overview'], styles['Normal']))
+            story.append(Spacer(1, 12))
+        
+        # Scope items - sort by category number first
+        if scope_items:
+            # Sort scope items by main code, then sub code (same as UI)
+            sorted_scope_items = sorted(scope_items, key=lambda x: (
+                int(x.get('mainCode', '99')), 
+                int(x.get('subCode', '9999'))
+            ))
+            
+            story.append(Paragraph("Scope Items", styles['Heading1']))
+            story.append(Spacer(1, 12))
+            
+            for item in sorted_scope_items:
+                # Item header (no numbering, just category codes)
+                header_text = f"{item.get('mainCode', 'XX')} {item.get('mainCategory', 'Unknown')} - {item.get('subCode', 'XXXX')} {item.get('subCategory', 'Unknown')}"
+                story.append(Paragraph(header_text, styles['Heading2']))
+                
+                # Description
+                if item.get('description'):
+                    story.append(Paragraph(f"<b>Description:</b> {item['description']}", styles['Normal']))
+                
+                # Details
+                details = item.get('details', {})
+                if details:
+                    detail_parts = []
+                    if details.get('material'): detail_parts.append(f"Material: {details['material']}")
+                    if details.get('location'): detail_parts.append(f"Location: {details['location']}")
+                    if details.get('quantity'): detail_parts.append(f"Quantity: {details['quantity']}")
+                    if details.get('notes'): detail_parts.append(f"Notes: {details['notes']}")
+                    
+                    for detail in detail_parts:
+                        story.append(Paragraph(f"• {detail}", styles['Normal']))
+                
+                story.append(Spacer(1, 12))
+        
+        doc_pdf.build(story)
+        
+        documents = {
+            "docx": f"/static/{docx_filename}",
+            "pdf": f"/static/{pdf_filename}"
+        }
+        
+        publish(session_id, 99, "PDF and Word documents ready for download...")
+        
+    except Exception as e:
+        log.error(f"Document generation failed: {e}")
+        # Fallback to no documents
+        documents = {"docx": None, "pdf": None}
+    
     publish(session_id, 100, "Done", status="completed")
     
     # Store final result with real data
@@ -287,7 +431,7 @@ Return ONLY valid JSON.
         "transcript": transcript,
         "scope_items": scope_items,
         "project_summary": project_summary,
-        "documents": {"docx": "/static/test.docx", "pdf": "/static/test.pdf"}
+        "documents": documents
     }
     redis.hset(f"jobs:{session_id}", mapping={
         "status": "completed",
@@ -314,7 +458,8 @@ Return ONLY valid JSON.
         "transcript": transcript,
         "scope_items": json.dumps(scope_items),
         "project_summary": json.dumps(project_summary),
-        "file_size_mb": str(file_size_mb) if file_size_mb else ""
+        "file_size_mb": str(file_size_mb) if file_size_mb else "",
+        "documents": json.dumps(documents)
     })
     
     log.info(f"Saved analysis {analysis_id} for file {filename}")

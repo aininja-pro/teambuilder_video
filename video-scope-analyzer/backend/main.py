@@ -1,5 +1,6 @@
 from fastapi import FastAPI, APIRouter, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from rq import Queue
 from redis import Redis
 from redis.asyncio import Redis as AsyncRedis
@@ -171,6 +172,7 @@ class SavedAnalysis(BaseModel):
     scope_items: List[dict]
     project_summary: dict
     file_size_mb: Optional[float] = None
+    documents: Optional[dict] = None
 
 class AnalysisListItem(BaseModel):
     id: str
@@ -220,7 +222,8 @@ def get_analysis(analysis_id: str):
         transcript=data.get('transcript', ''),
         scope_items=json.loads(data.get('scope_items', '[]')),
         project_summary=json.loads(data.get('project_summary', '{}')),
-        file_size_mb=float(data.get('file_size_mb', 0)) if data.get('file_size_mb') else None
+        file_size_mb=float(data.get('file_size_mb', 0)) if data.get('file_size_mb') else None,
+        documents=json.loads(data.get('documents', '{}')) if data.get('documents') else None
     )
 
 @router.delete("/api/analyses/{analysis_id}")
@@ -231,6 +234,9 @@ def delete_analysis(analysis_id: str):
     
     redis.delete(f"analysis:{analysis_id}")
     return {"message": "Analysis deleted successfully"}
+
+# Mount static files for document downloads
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 app.include_router(router)
 

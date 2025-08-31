@@ -77,14 +77,22 @@ export default function Home() {
     setTranscript(analysis.transcript)
     // Sort scope items when loading saved analysis
     const sortedScopeItems = (analysis.scope_items || []).sort((a: any, b: any) => {
-      if (a.mainCode !== b.mainCode) {
-        return a.mainCode.localeCompare(b.mainCode)
+      // Parse main codes as numbers for proper sorting (01, 02, 05, 08, 09, etc.)
+      const mainCodeA = parseInt(a.mainCode) || 99
+      const mainCodeB = parseInt(b.mainCode) || 99
+      
+      if (mainCodeA !== mainCodeB) {
+        return mainCodeA - mainCodeB
       }
-      return a.subCode.localeCompare(b.subCode)
+      
+      // Parse sub codes as numbers
+      const subCodeA = parseInt(a.subCode) || 9999
+      const subCodeB = parseInt(b.subCode) || 9999
+      return subCodeA - subCodeB
     })
     setScopeItems(sortedScopeItems)
     setProjectSummary(analysis.project_summary)
-    setDocuments({ docx: null, pdf: null }) // Documents not saved yet
+    setDocuments(analysis.documents || { docx: null, pdf: null })
     setCurrentAnalysisId(analysis.id)
     setSelectedFile(null) // Clear current file selection
     setError('')
@@ -123,10 +131,18 @@ export default function Home() {
           setTranscript(result.transcript || '')
           // Sort scope items by main code, then by sub code
           const sortedScopeItems = (result.scope_items || []).sort((a: any, b: any) => {
-            if (a.mainCode !== b.mainCode) {
-              return a.mainCode.localeCompare(b.mainCode)
+            // Parse main codes as numbers for proper sorting (01, 02, 05, 08, 09, etc.)
+            const mainCodeA = parseInt(a.mainCode) || 99
+            const mainCodeB = parseInt(b.mainCode) || 99
+            
+            if (mainCodeA !== mainCodeB) {
+              return mainCodeA - mainCodeB
             }
-            return a.subCode.localeCompare(b.subCode)
+            
+            // Parse sub codes as numbers
+            const subCodeA = parseInt(a.subCode) || 9999
+            const subCodeB = parseInt(b.subCode) || 9999
+            return subCodeA - subCodeB
           })
           setScopeItems(sortedScopeItems)
           setProjectSummary(result.project_summary || null)

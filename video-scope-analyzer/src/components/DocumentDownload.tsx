@@ -37,6 +37,8 @@ export default function DocumentDownload({ documents }: DocumentDownloadProps) {
         {documents.docx && (
           <a
             href={documents.docx}
+            target="_blank"
+            rel="noopener noreferrer"
             download
             className="flex items-center justify-between p-3 border border-green-200 rounded-md hover:bg-green-50 transition-colors"
           >
@@ -51,6 +53,8 @@ export default function DocumentDownload({ documents }: DocumentDownloadProps) {
         {documents.pdf && (
           <a
             href={documents.pdf}
+            target="_blank"
+            rel="noopener noreferrer"
             download
             className="flex items-center justify-between p-3 border border-green-200 rounded-md hover:bg-green-50 transition-colors"
           >
