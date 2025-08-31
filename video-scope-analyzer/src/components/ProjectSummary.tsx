@@ -37,7 +37,7 @@ export default function ProjectSummary({ summary }: ProjectSummaryProps) {
       itemsArray = items.split(/[,;•\n]/).map(item => item.trim()).filter(item => item.length > 0)
     } else if (typeof items === 'object') {
       // Handle object - use values or convert to string
-      itemsArray = Object.values(items).filter(item => item && typeof item === 'string')
+      itemsArray = Object.values(items).filter((item): item is string => item && typeof item === 'string')
     }
     
     if (itemsArray.length === 0) return null
