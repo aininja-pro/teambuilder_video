@@ -1,0 +1,14 @@
+[build]
+  base = "video-scope-analyzer"
+  publish = "out"
+  command = "npm install && npm run build"
+
+[[redirects]]
+  from = "/api/*"
+  to = "https://teambuilders-video.onrender.com/api/:splat"
+  status = 200
+
+[[headers]]
+  for = "/api/*"
+  [headers.values]
+    Access-Control-Allow-Origin = "*"

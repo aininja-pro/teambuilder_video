@@ -263,8 +263,15 @@ if os.path.exists("../.next"):
 else:
     # Production mode - serve built React app
     try:
-        app.mount("/", StaticFiles(directory="../out", html=True), name="frontend")
-        print("✅ Serving React frontend from ../out")
+        # Check multiple possible build locations
+        if os.path.exists("../out"):
+            app.mount("/", StaticFiles(directory="../out", html=True), name="frontend")
+            print("✅ Serving React frontend from ../out")
+        elif os.path.exists("../../video-scope-analyzer/out"):
+            app.mount("/", StaticFiles(directory="../../video-scope-analyzer/out", html=True), name="frontend")
+            print("✅ Serving React frontend from ../../video-scope-analyzer/out")
+        else:
+            print("⚠️ React build folder not found")
     except Exception as e:
         print(f"⚠️ Could not serve frontend: {e}")
 
