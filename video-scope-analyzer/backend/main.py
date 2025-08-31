@@ -255,6 +255,19 @@ def delete_analysis(analysis_id: str):
 # Mount static files for document downloads
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
+# Serve React frontend from production build
+import os
+if os.path.exists("../.next"):
+    # Development mode - Next.js handles frontend
+    pass
+else:
+    # Production mode - serve built React app
+    try:
+        app.mount("/", StaticFiles(directory="../out", html=True), name="frontend")
+        print("✅ Serving React frontend from ../out")
+    except Exception as e:
+        print(f"⚠️ Could not serve frontend: {e}")
+
 app.include_router(router)
 
 if __name__ == "__main__":
