@@ -258,29 +258,15 @@ def delete_analysis(analysis_id: str):
     return {"message": "Analysis deleted successfully"}
 
 from fastapi.responses import FileResponse
+from pathlib import Path
 
-# Mount the React build output - this serves CSS, JS, and other assets
-if os.path.exists("static/_next"):
-    app.mount("/_next", StaticFiles(directory="static/_next"), name="nextjs_assets")
-
-if os.path.exists("static/static"):
-    app.mount("/static", StaticFiles(directory="static/static"), name="static_assets")
-
-if os.path.exists("static"):
-    app.mount("/documents", StaticFiles(directory="static"), name="documents")
-
-# Mount API routes
+# Mount API routes FIRST (highest priority)
 app.include_router(router)
 
-# Serve frontend index.html at root
-@app.get("/")
-def serve_frontend():
-    return FileResponse("static/index.html")
-
-# Catch-all for React router
-@app.get("/{full_path:path}")
-def serve_react_app(full_path: str):
-    return FileResponse("static/index.html")
+# Mount static files (serves ALL static content including assets)
+FRONTEND_DIR = Path(__file__).parent / "static"
+if FRONTEND_DIR.exists():
+    app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="frontend")
 
 if __name__ == "__main__":
     import uvicorn
