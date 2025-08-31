@@ -198,6 +198,24 @@ def main():
     with col1:
         st.header("📁 Upload Job Video or Audio")
         
+        # Add helpful info about upload speeds
+        with st.expander("💡 Tips for Faster Processing", expanded=False):
+            st.markdown("""
+            **Upload Speed Tips:**
+            - **Smaller files upload faster**: Try to keep videos under 200MB when possible
+            - **Internet speed matters**: Upload time depends on your internet connection
+            - **Audio files are faster**: MP3 files are much smaller than video files
+            - **Local = instant**: Local testing uploads instantly, but live uploads take time
+            
+            **Estimated Upload Times (typical home internet ~10 Mbps upload):**
+            - 50MB file: ~40 seconds
+            - 100MB file: ~1.3 minutes  
+            - 200MB file: ~2.7 minutes
+            - 300MB+ file: 4+ minutes
+            
+            **For very large files:** Consider compressing the video or extracting just the audio before uploading.
+            """)
+        
         # File uploader
         uploaded_file = st.file_uploader(
             "Choose a video or audio file",
@@ -209,10 +227,19 @@ def main():
         if uploaded_file is not None:
             st.session_state.uploaded_file = uploaded_file
             
-            # Display file info
+            # Display file info with upload time estimates
             file_size_mb = uploaded_file.size / (1024 * 1024)
             st.info(f"📄 **File:** {uploaded_file.name}")
             st.info(f"📊 **Size:** {file_size_mb:.2f} MB")
+            
+            # Estimate upload time (assuming 10 Mbps typical upload speed)
+            upload_time_seconds = (file_size_mb * 8) / 10  # 8 bits per byte, 10 Mbps
+            if upload_time_seconds > 60:
+                upload_time_str = f"~{upload_time_seconds/60:.1f} minutes"
+            else:
+                upload_time_str = f"~{upload_time_seconds:.0f} seconds"
+            
+            st.info(f"⏱️ **Estimated upload time:** {upload_time_str} (depends on your internet speed)")
             
             # Validate file size with different warning levels
             if file_size_mb > 500:
@@ -221,6 +248,8 @@ def main():
                 st.warning("⚠️ Large file detected! Processing will take longer and may incur higher costs. The file will be automatically compressed for transcription.")
             elif file_size_mb > 200:
                 st.info("ℹ️ Medium-sized file. Will be compressed if needed for transcription.")
+            elif file_size_mb < 50:
+                st.success("✅ Great file size! This should upload and process quickly.")
             
             # Processing section
             st.header("🔄 Processing")
