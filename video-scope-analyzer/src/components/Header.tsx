@@ -17,8 +17,8 @@ export default function Header({ onProjectsClick, onAnalyzeVideoClick }: HeaderP
               <img
                 src="/assets/team-builders-logo.png"
                 alt="Team Builders Logo"
-                width={160}
-                height={26}
+                width={200}
+                height={32}
               />
             </Link>
           </div>
