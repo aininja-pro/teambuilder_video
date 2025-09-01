@@ -10,7 +10,6 @@ pip install -r requirements.txt
 pushd video-scope-analyzer
 npm ci
 npm run build
-npm run export
 # ✅ Guard: ensure the logo exists in the export
 test -f out/assets/team-builders-logo.png || { echo "❌ Logo missing in export"; ls -R out | sed -n '1,200p'; exit 1; }
 popd
