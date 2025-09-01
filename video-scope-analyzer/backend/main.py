@@ -3,7 +3,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
 from rq import Queue
-from redis import Redis
 from redis.asyncio import Redis as AsyncRedis
 import asyncio
 import json
@@ -11,16 +10,16 @@ import os
 from datetime import datetime
 from typing import List, Optional
 from pydantic import BaseModel
+from redis_client import get_redis
 
-# Redis setup with fallback for deployment
-import os
+# Redis setup with shared client
 redis = None
 redis_async = None
 q = None
 
 try:
     if os.getenv('USE_REDIS', 'true').lower() != 'false':
-        redis = Redis.from_url(os.getenv("REDIS_URL", "redis://localhost:6379"), decode_responses=True)
+        redis = get_redis()
         redis_async = AsyncRedis.from_url(os.getenv("REDIS_URL", "redis://localhost:6379"), decode_responses=True)
         q = Queue("uploads", connection=redis)
         print("✅ Redis connected successfully")

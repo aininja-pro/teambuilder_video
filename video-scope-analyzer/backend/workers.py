@@ -1,15 +1,15 @@
 # ChatGPT's EXACT worker pattern
-from redis import Redis
 import time, json
 import logging
 import traceback
 import os
 from openai import OpenAI
 from dotenv import load_dotenv
+from redis_client import get_redis
 
 load_dotenv()
 
-redis = Redis.from_url(os.getenv("REDIS_URL", "redis://localhost:6379"), decode_responses=True)
+redis = get_redis()
 log = logging.getLogger("processing")
 
 # ChatGPT's EXACT publish pattern with payload
