@@ -9,7 +9,7 @@ import ProjectSummary from '@/components/ProjectSummary'
 import DocumentDownload from '@/components/DocumentDownload'
 import SavedAnalyses from '@/components/SavedAnalyses'
 import Header from '@/components/Header'
-import { uploader, apiUrl } from '@/utils/api'
+import { uploader, apiUrl, ProcessingStatusManager } from '@/utils/api'
 
 interface ScopeItem {
   mainCode: string
@@ -114,7 +114,8 @@ export default function Home() {
       })
       
       // Connect WebSocket for real-time updates
-      wsRef.current = uploader.connectWebSocket(
+      const manager = new ProcessingStatusManager()
+      wsRef.current = manager.connectWebSocket(
         sessionId,
         // onUpdate
         (update) => {
