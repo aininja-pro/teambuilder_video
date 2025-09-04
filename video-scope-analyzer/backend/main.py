@@ -1,7 +1,8 @@
-from fastapi import FastAPI, APIRouter, WebSocket, WebSocketDisconnect, HTTPException
+from fastapi import FastAPI, APIRouter, WebSocket, WebSocketDisconnect, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
+from pathlib import Path
 from rq import Queue
 from redis import Redis
 from redis.asyncio import Redis as AsyncRedis
@@ -44,14 +45,14 @@ app.add_middleware(
 async def not_found_handler(request, exc):
     return JSONResponse(status_code=404, content={"detail": "Frontend build not found"})
 
-router = APIRouter()
+# ---------- API (must be included BEFORE static mount) ----------  
+upload_router = APIRouter(prefix="/api/upload", tags=["upload"])
+api_router = APIRouter(prefix="/api", tags=["api"])
 
 # Minimal chunked upload storage
 upload_sessions = {}
 
-from fastapi import UploadFile, File, Form
-
-@router.post("/api/upload/chunk")
+@upload_router.api_route("/chunk", methods=["POST", "PUT"])  # accept both
 async def upload_chunk(
     chunk: UploadFile = File(...),
     chunk_index: int = Form(...),
@@ -93,8 +94,7 @@ async def upload_chunk(
         "complete": upload_sessions[session_id]["received_chunks"] == total_chunks
     }
 
-# ChatGPT's EXACT API pattern
-@router.post("/api/upload/complete/{session_id}")
+@upload_router.post("/complete/{session_id}")
 def complete(session_id: str):
     import logging
     logging.warning(f"DEBUG MAIN: Complete called for session {session_id}")
@@ -128,7 +128,7 @@ def complete(session_id: str):
         return {"job_id": "simple-mode", "message": "Redis not available - using simple mode"}
 
 # ChatGPT's EXACT robust WebSocket pattern
-@router.websocket("/ws/{session_id}")
+@api_router.websocket("/ws/{session_id}")
 async def ws_progress(ws: WebSocket, session_id: str):
     await ws.accept()
 
@@ -171,7 +171,7 @@ async def ws_progress(ws: WebSocket, session_id: str):
         await pubsub.aclose()
 
 # Fallback endpoint as ChatGPT suggested
-@router.get("/api/jobs/{session_id}")
+@api_router.get("/jobs/{session_id}")
 def get_job_status(session_id: str):
     job_data = redis.hgetall(f"jobs:{session_id}")
     if not job_data:
@@ -179,7 +179,7 @@ def get_job_status(session_id: str):
     return job_data
 
 # ChatGPT's debug endpoint for testing
-@router.post("/api/debug/publish/{session_id}/{pct}")
+@api_router.post("/debug/publish/{session_id}/{pct}")
 async def dbg(session_id: str, pct: int):
     from workers import publish
     publish(session_id, pct, f"dbg {pct}", status="debug")
@@ -204,7 +204,7 @@ class AnalysisListItem(BaseModel):
     scope_count: int
 
 # Persistence API Endpoints
-@router.get("/api/analyses", response_model=List[AnalysisListItem])
+@api_router.get("/analyses", response_model=List[AnalysisListItem])
 def get_analyses():
     """Get list of all saved analyses"""
     try:
@@ -230,7 +230,7 @@ def get_analyses():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/api/analyses/{analysis_id}", response_model=SavedAnalysis)
+@api_router.get("/analyses/{analysis_id}", response_model=SavedAnalysis)
 def get_analysis(analysis_id: str):
     """Get a specific analysis by ID"""
     data = redis.hgetall(f"analysis:{analysis_id}")
@@ -248,7 +248,7 @@ def get_analysis(analysis_id: str):
         documents=json.loads(data.get('documents', '{}')) if data.get('documents') else None
     )
 
-@router.delete("/api/analyses/{analysis_id}")
+@api_router.delete("/analyses/{analysis_id}")
 def delete_analysis(analysis_id: str):
     """Delete a specific analysis"""
     if not redis.exists(f"analysis:{analysis_id}"):
@@ -257,30 +257,20 @@ def delete_analysis(analysis_id: str):
     redis.delete(f"analysis:{analysis_id}")
     return {"message": "Analysis deleted successfully"}
 
-from fastapi.responses import FileResponse
+# Debug endpoint to verify routes
+@app.get("/api/_debug/routes")
+def debug_routes():
+    return {"routes": [{"path": route.path, "methods": getattr(route, "methods", ["GET"])} for route in app.routes]}
 
-# Mount the React build output - this serves CSS, JS, and other assets
-if os.path.exists("static/_next"):
-    app.mount("/_next", StaticFiles(directory="static/_next"), name="nextjs_assets")
+# Include upload router first
+app.include_router(upload_router)
+# Include other API routes  
+app.include_router(api_router)
 
-if os.path.exists("static/static"):
-    app.mount("/static", StaticFiles(directory="static/static"), name="static_assets")
-
-if os.path.exists("static"):
-    app.mount("/documents", StaticFiles(directory="static"), name="documents")
-
-# Mount API routes
-app.include_router(router)
-
-# Serve frontend index.html at root
-@app.get("/")
-def serve_frontend():
-    return FileResponse("static/index.html")
-
-# Catch-all for React router
-@app.get("/{full_path:path}")
-def serve_react_app(full_path: str):
-    return FileResponse("static/index.html")
+# ---------- Static site (mount AFTER API) ----------
+FRONTEND_DIR = Path(__file__).parent / "static"
+if FRONTEND_DIR.exists():
+    app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="frontend")
 
 if __name__ == "__main__":
     import uvicorn
