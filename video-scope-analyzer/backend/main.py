@@ -127,8 +127,8 @@ def complete(session_id: str):
         # Simple mode - return mock result for now
         return {"job_id": "simple-mode", "message": "Redis not available - using simple mode"}
 
-# ChatGPT's EXACT robust WebSocket pattern
-@api_router.websocket("/ws/{session_id}")
+# ChatGPT's EXACT robust WebSocket pattern (mount at root, not /api prefix)
+@app.websocket("/ws/{session_id}")
 async def ws_progress(ws: WebSocket, session_id: str):
     await ws.accept()
 
