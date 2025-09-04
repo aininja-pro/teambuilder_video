@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
 from rq import Queue
+from redis import Redis
 from redis.asyncio import Redis as AsyncRedis
 import asyncio
 import json
@@ -10,16 +11,16 @@ import os
 from datetime import datetime
 from typing import List, Optional
 from pydantic import BaseModel
-from redis_client import get_redis
 
-# Redis setup with shared client
+# Redis setup with fallback for deployment
+import os
 redis = None
 redis_async = None
 q = None
 
 try:
     if os.getenv('USE_REDIS', 'true').lower() != 'false':
-        redis = get_redis()
+        redis = Redis.from_url(os.getenv("REDIS_URL", "redis://localhost:6379"), decode_responses=True)
         redis_async = AsyncRedis.from_url(os.getenv("REDIS_URL", "redis://localhost:6379"), decode_responses=True)
         q = Queue("uploads", connection=redis)
         print("✅ Redis connected successfully")
@@ -257,15 +258,29 @@ def delete_analysis(analysis_id: str):
     return {"message": "Analysis deleted successfully"}
 
 from fastapi.responses import FileResponse
-from pathlib import Path
 
-# Mount API routes FIRST (highest priority)
+# Mount the React build output - this serves CSS, JS, and other assets
+if os.path.exists("static/_next"):
+    app.mount("/_next", StaticFiles(directory="static/_next"), name="nextjs_assets")
+
+if os.path.exists("static/static"):
+    app.mount("/static", StaticFiles(directory="static/static"), name="static_assets")
+
+if os.path.exists("static"):
+    app.mount("/documents", StaticFiles(directory="static"), name="documents")
+
+# Mount API routes
 app.include_router(router)
 
-# Mount static files (serves ALL static content including assets)
-FRONTEND_DIR = Path(__file__).parent / "static"
-if FRONTEND_DIR.exists():
-    app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="frontend")
+# Serve frontend index.html at root
+@app.get("/")
+def serve_frontend():
+    return FileResponse("static/index.html")
+
+# Catch-all for React router
+@app.get("/{full_path:path}")
+def serve_react_app(full_path: str):
+    return FileResponse("static/index.html")
 
 if __name__ == "__main__":
     import uvicorn
