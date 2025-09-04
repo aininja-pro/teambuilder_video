@@ -181,8 +181,11 @@ export class ProcessingStatusManager {
     
     ws.onclose = (event) => {
       console.log('WebSocket closed:', event.code, event.reason)
-      // Only show error for unexpected disconnections (not normal closure or going away)
-      if (event.code !== 1000 && event.code !== 1001) {
+      // Only show error for unexpected disconnections
+      // 1000 = Normal closure, 1001 = Going away, 1006 = Abnormal closure (connection lost)
+      const isUnexpectedClosure = event.code !== 1000 && event.code !== 1001 && event.code !== 1006
+      
+      if (isUnexpectedClosure) {
         onError('Connection lost. Refreshing to check status...')
         
         // Fallback: poll for completion

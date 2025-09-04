@@ -303,10 +303,39 @@ Return ONLY valid JSON.
         doc.add_paragraph('') # spacing
         
         # Add project summary if available
-        if project_summary and project_summary.get('overview'):
-            doc.add_heading('Project Overview', level=1)
-            doc.add_paragraph(project_summary['overview'])
-            doc.add_paragraph('')
+        if project_summary:
+            if project_summary.get('overview'):
+                doc.add_heading('Project Overview', level=1)
+                doc.add_paragraph(project_summary['overview'])
+                doc.add_paragraph('')
+            
+            # Add key requirements
+            if project_summary.get('keyRequirements'):
+                doc.add_heading('Key Requirements', level=1)
+                for req in project_summary['keyRequirements']:
+                    doc.add_paragraph(f"• {req}", style='List Bullet')
+                doc.add_paragraph('')
+            
+            # Add concerns
+            if project_summary.get('concerns'):
+                doc.add_heading('Concerns & Challenges', level=1)
+                for concern in project_summary['concerns']:
+                    doc.add_paragraph(f"• {concern}", style='List Bullet')
+                doc.add_paragraph('')
+            
+            # Add decision points
+            if project_summary.get('decisionPoints'):
+                doc.add_heading('Decision Points', level=1)
+                for decision in project_summary['decisionPoints']:
+                    doc.add_paragraph(f"• {decision}", style='List Bullet')
+                doc.add_paragraph('')
+            
+            # Add important notes
+            if project_summary.get('importantNotes'):
+                doc.add_heading('Important Notes', level=1)
+                for note in project_summary['importantNotes']:
+                    doc.add_paragraph(f"• {note}", style='List Bullet')
+                doc.add_paragraph('')
         
         # Add scope items - sort by category number first
         if scope_items:
@@ -370,11 +399,40 @@ Return ONLY valid JSON.
         story.append(Paragraph(f"Generated: {datetime.now().strftime('%B %d, %Y at %I:%M %p')}", styles['Normal']))
         story.append(Spacer(1, 24))
         
-        # Project overview
-        if project_summary and project_summary.get('overview'):
-            story.append(Paragraph("Project Overview", styles['Heading1']))
-            story.append(Paragraph(project_summary['overview'], styles['Normal']))
-            story.append(Spacer(1, 12))
+        # Project overview and details
+        if project_summary:
+            if project_summary.get('overview'):
+                story.append(Paragraph("Project Overview", styles['Heading1']))
+                story.append(Paragraph(project_summary['overview'], styles['Normal']))
+                story.append(Spacer(1, 12))
+            
+            # Add key requirements
+            if project_summary.get('keyRequirements'):
+                story.append(Paragraph("Key Requirements", styles['Heading1']))
+                for req in project_summary['keyRequirements']:
+                    story.append(Paragraph(f"• {req}", styles['Normal']))
+                story.append(Spacer(1, 12))
+            
+            # Add concerns
+            if project_summary.get('concerns'):
+                story.append(Paragraph("Concerns & Challenges", styles['Heading1']))
+                for concern in project_summary['concerns']:
+                    story.append(Paragraph(f"• {concern}", styles['Normal']))
+                story.append(Spacer(1, 12))
+            
+            # Add decision points
+            if project_summary.get('decisionPoints'):
+                story.append(Paragraph("Decision Points", styles['Heading1']))
+                for decision in project_summary['decisionPoints']:
+                    story.append(Paragraph(f"• {decision}", styles['Normal']))
+                story.append(Spacer(1, 12))
+            
+            # Add important notes
+            if project_summary.get('importantNotes'):
+                story.append(Paragraph("Important Notes", styles['Heading1']))
+                for note in project_summary['importantNotes']:
+                    story.append(Paragraph(f"• {note}", styles['Normal']))
+                story.append(Spacer(1, 12))
         
         # Scope items - sort by category number first
         if scope_items:
