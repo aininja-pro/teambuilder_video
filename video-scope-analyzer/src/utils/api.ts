@@ -112,6 +112,11 @@ export async function uploadFileInChunks(
   }
 }
 
+// Export for backward compatibility
+export const uploader = {
+  uploadFileInChunks
+}
+
 export class ProcessingStatusManager {
   private ws: WebSocket | null = null
   
