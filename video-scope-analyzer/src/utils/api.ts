@@ -1,6 +1,16 @@
-export const API_BASE_URL = process.env.NODE_ENV === 'production' 
-  ? '' // Use same domain in production
-  : 'http://localhost:8000' // Use localhost in development
+// Always prefer same-origin in prod. In dev, set NEXT_PUBLIC_API_BASE=http://localhost:8000
+const BASE = process.env.NEXT_PUBLIC_API_BASE ?? "";
+
+/** Build an API URL safely. Accepts "/api/..." or "api/..." */
+export function apiUrl(path: string) {
+  const p = path.startsWith("/") ? path : `/${path}`;
+  return `${BASE}${p}`;
+}
+
+/** Thin wrapper so every fetch goes through one place */
+export function apiFetch(path: string, init?: RequestInit) {
+  return fetch(apiUrl(path), init);
+}
 
 export interface UploadChunkResponse {
   session_id: string
@@ -48,7 +58,7 @@ export class ChunkedUploader {
           formData.append('session_id', sessionId)
         }
         
-        const response = await fetch(`${API_BASE_URL}/api/upload/chunk`, {
+        const response = await apiFetch("/api/upload/chunk", {
           method: 'POST',
           body: formData
         })
@@ -65,7 +75,7 @@ export class ChunkedUploader {
       }
       
       // Complete upload and start processing
-      const completeResponse = await fetch(`${API_BASE_URL}/api/upload/complete/${sessionId}`, {
+      const completeResponse = await apiFetch(`/api/upload/complete/${sessionId}`, {
         method: 'POST'
       })
       
@@ -132,7 +142,7 @@ export class ChunkedUploader {
           if (pct >= 100 && status === 'completed') {
             console.log('Job completed, fetching final result for session:', sessionId)
             // Fetch final result from Redis
-            fetch(`${API_BASE_URL}/api/jobs/${sessionId}`)
+            apiFetch(`/api/jobs/${sessionId}`)
               .then(res => res.json())
               .then(data => {
                 console.log('Final result data:', data)
