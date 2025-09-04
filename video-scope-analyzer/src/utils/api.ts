@@ -39,7 +39,7 @@ export class ChunkedUploader {
         const chunk = chunks[i]
         const formData = new FormData()
         
-        formData.append('chunk', chunk, `chunk_${i}`)
+        formData.append('chunk', chunk)
         formData.append('chunk_index', i.toString())
         formData.append('total_chunks', totalChunks.toString())
         formData.append('filename', file.name)
