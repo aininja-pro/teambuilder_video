@@ -119,11 +119,20 @@ export default function Home() {
         sessionId,
         // onUpdate
         (update) => {
-          if (update.step) {
+          console.log('Processing update:', update)
+          
+          // Handle message/step updates
+          if (update.msg) {
+            setProcessingStep(update.msg)
+          } else if (update.step) {
             setProcessingStep(update.step)
           }
-          if (update.progress !== undefined) {
-            setProcessingProgress(Math.max(50, update.progress)) // Start from 50% (after upload)
+          
+          // Handle progress updates
+          if (update.pct !== undefined) {
+            setProcessingProgress(Math.max(50, update.pct)) // Start from 50% (after upload)
+          } else if (update.progress !== undefined) {
+            setProcessingProgress(Math.max(50, update.progress)) // Fallback for different formats
           }
         },
         // onComplete
