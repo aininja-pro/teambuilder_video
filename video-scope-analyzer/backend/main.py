@@ -156,7 +156,36 @@ async def ws_progress(ws: WebSocket, session_id: str):
         while True:
             msg = await pubsub.get_message(timeout=1.0)
             if msg:
+                # Send the message
                 await ws.send_text(msg["data"])  # already JSON string
+                
+                # Check if this is a completion message
+                try:
+                    parsed_msg = json.loads(msg["data"])
+                    if (parsed_msg.get("type") == "progress" and 
+                        (parsed_msg.get("status") == "completed" or parsed_msg.get("pct") == 100)):
+                        # Cancel heartbeat before closing
+                        try:
+                            hb_task.cancel()
+                        except Exception:
+                            pass
+                        
+                        # Wait a moment for message to be processed
+                        await asyncio.sleep(0.1)
+                        
+                        # Close with explicit normal closure
+                        from starlette.websockets import WebSocketState
+                        from starlette import status as wsstatus
+                        
+                        if ws.client_state == WebSocketState.CONNECTED:
+                            try:
+                                await ws.close(code=wsstatus.WS_1000_NORMAL_CLOSURE)
+                            except Exception:
+                                pass
+                        break
+                except (json.JSONDecodeError, KeyError):
+                    pass  # Continue if message parsing fails
+                    
             await asyncio.sleep(0.01)
     except asyncio.CancelledError:
         pass

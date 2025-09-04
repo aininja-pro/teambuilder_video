@@ -129,91 +129,108 @@ export class ProcessingStatusManager {
     onError: (error: string) => void
   ): WebSocket {
     const ws = new WebSocket(wsUrl(`/ws/${sessionId}`))
+    let completed = false
     
     ws.onopen = () => {
       console.log('WebSocket connected for session:', sessionId)
     }
     
-    ws.onmessage = (event) => {
+    ws.onmessage = async (event) => {
+      let msg: any
       try {
-        const update = JSON.parse(event.data)
-        console.log('WebSocket message:', update)
-        
-        if (update.type === 'progress') {
-          onUpdate(update)
-          
-          // Check if completed and fetch final result
-          if (update.pct >= 100 && update.status === 'completed') {
-            console.log('Job completed, fetching final result for session:', sessionId)
-            // Fetch final result from Redis
-            apiFetch(`/api/jobs/${sessionId}`)
-              .then(res => res.json())
-              .then(data => {
-                console.log('Final result data:', data)
-                if (data.result) {
-                  try {
-                    const result = typeof data.result === 'string' ? JSON.parse(data.result) : data.result
-                    console.log('Parsed result:', result)
-                    onComplete(result)
-                  } catch (e) {
-                    console.error('Error parsing result:', e)
-                    onError('Failed to parse processing result')
-                  }
-                } else {
-                  onError('No result data available')
-                }
-              })
-              .catch(err => {
-                console.error('Error fetching final result:', err)
-                onError('Failed to fetch processing result')
-              })
-          }
-        } else if (update.type === 'snapshot' && update.status === 'completed') {
-          // Handle initial snapshot if already completed
-          console.log('Received completed snapshot, fetching result')
-          onComplete(update)
+        msg = JSON.parse(event.data)
+      } catch {
+        return
+      }
+      
+      console.log('WebSocket message:', msg)
+      
+      if (msg.type === 'progress') {
+        if (typeof msg.pct === 'number') {
+          onUpdate(msg)
         }
-      } catch (e) {
-        console.error('WebSocket message parse error:', e)
-        onError('Failed to parse progress update')
+        
+        if (msg.status === 'completed' || msg.pct === 100) {
+          completed = true
+          
+          // Fetch final result once, then close gracefully
+          try {
+            console.log('Job completed, fetching final result for session:', sessionId)
+            const res = await apiFetch(`/api/jobs/${sessionId}`)
+            const data = await res.json()
+            console.log('Final result data:', data)
+            
+            if (data.result) {
+              try {
+                const result = typeof data.result === 'string' ? JSON.parse(data.result) : data.result
+                console.log('Parsed result:', result)
+                onComplete(result)
+              } catch (e) {
+                console.error('Error parsing result:', e)
+                onError('Failed to parse processing result')
+              }
+            } else {
+              onComplete(data)
+            }
+          } catch (e: any) {
+            onError(`Finalize fetch failed: ${e?.message ?? e}`)
+          } finally {
+            // Tell the browser this is a normal close
+            try {
+              ws.close(1000, 'done')
+            } catch {}
+          }
+        }
+      } else if (msg.type === 'snapshot' && msg.status === 'completed') {
+        // Handle initial snapshot if already completed
+        completed = true
+        console.log('Received completed snapshot, fetching result')
+        onComplete(msg)
       }
     }
     
     ws.onclose = (event) => {
       console.log('WebSocket closed:', event.code, event.reason)
-      // Only show error for unexpected disconnections
-      // 1000 = Normal closure, 1001 = Going away, 1006 = Abnormal closure (connection lost)
-      const isUnexpectedClosure = event.code !== 1000 && event.code !== 1001 && event.code !== 1006
       
-      if (isUnexpectedClosure) {
-        onError('Connection lost. Refreshing to check status...')
-        
-        // Fallback: poll for completion
-        const pollInterval = setInterval(() => {
-          apiFetch(`/api/jobs/${sessionId}`)
-            .then(res => res.json())
-            .then(data => {
-              if (data.status === 'completed') {
-                clearInterval(pollInterval)
-                if (data.result) {
-                  const result = typeof data.result === 'string' ? JSON.parse(data.result) : data.result
-                  onComplete(result)
-                }
-              }
-            })
-            .catch(() => {
-              // Continue polling
-            })
-        }, 2000)
-        
-        // Stop polling after 5 minutes
-        setTimeout(() => clearInterval(pollInterval), 300000)
+      // Triple-check before showing error banner:
+      // 1. Job must not be completed
+      // 2. Close code must not be normal (1000, 1005)
+      // 3. API check must confirm status ≠ complete
+      
+      // Check 1: If already completed, this is normal
+      if (completed) {
+        return
       }
+      
+      // Check 2: Normal close codes should not trigger errors
+      if (event.code === 1000 || event.code === 1005) {
+        return
+      }
+      
+      // Check 3: One-shot status verification before showing error
+      apiFetch(`/api/jobs/${sessionId}`)
+        .then(res => res.json())
+        .then(data => {
+          // Only show error if job is truly not complete
+          if (data?.status !== 'completed' && data?.status !== 'complete') {
+            onError(`Connection lost (code ${event.code}). Retrying or refresh to continue.`)
+          } else {
+            // Job actually completed, treat as success
+            onComplete(data)
+          }
+        })
+        .catch(() => {
+          // If API check fails, show error as last resort
+          onError(`Connection lost (code ${event.code}).`)
+        })
     }
     
-    ws.onerror = (error) => {
-      console.error('WebSocket error:', error)
-      onError('Connection error')
+    ws.onerror = () => {
+      // Don't double-report if we've already completed
+      if (!completed) {
+        console.error('WebSocket error')
+        onError('WebSocket error')
+      }
     }
     
     this.ws = ws
