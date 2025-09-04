@@ -115,8 +115,10 @@ export class ChunkedUploader {
     onComplete: (result: any) => void,
     onError: (error: string) => void
   ): WebSocket {
-    const wsBase = BASE.replace('http://', 'ws://').replace('https://', 'wss://') || (typeof window !== 'undefined' && window.location.protocol === 'https:' ? 'wss://' : 'ws://') + (typeof window !== 'undefined' ? window.location.host : 'localhost:8000')
-    const ws = new WebSocket(`${wsBase}/ws/${sessionId}`)
+    const protocol = typeof window !== 'undefined' && window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    const host = typeof window !== 'undefined' ? window.location.host : 'localhost:8000'
+    const wsUrl = BASE ? `${protocol}//${BASE.replace(/^https?:\/\//, '')}/ws/${sessionId}` : `${protocol}//${host}/ws/${sessionId}`
+    const ws = new WebSocket(wsUrl)
     
     ws.onopen = () => {
       console.log('WebSocket connected for session:', sessionId)
