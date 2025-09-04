@@ -313,28 +313,28 @@ Return ONLY valid JSON.
             if project_summary.get('keyRequirements'):
                 doc.add_heading('Key Requirements', level=1)
                 for req in project_summary['keyRequirements']:
-                    doc.add_paragraph(f"• {req}", style='List Bullet')
+                    doc.add_paragraph(req, style='List Bullet')
                 doc.add_paragraph('')
             
             # Add concerns
             if project_summary.get('concerns'):
                 doc.add_heading('Concerns & Challenges', level=1)
                 for concern in project_summary['concerns']:
-                    doc.add_paragraph(f"• {concern}", style='List Bullet')
+                    doc.add_paragraph(concern, style='List Bullet')
                 doc.add_paragraph('')
             
             # Add decision points
             if project_summary.get('decisionPoints'):
                 doc.add_heading('Decision Points', level=1)
                 for decision in project_summary['decisionPoints']:
-                    doc.add_paragraph(f"• {decision}", style='List Bullet')
+                    doc.add_paragraph(decision, style='List Bullet')
                 doc.add_paragraph('')
             
             # Add important notes
             if project_summary.get('importantNotes'):
                 doc.add_heading('Important Notes', level=1)
                 for note in project_summary['importantNotes']:
-                    doc.add_paragraph(f"• {note}", style='List Bullet')
+                    doc.add_paragraph(note, style='List Bullet')
                 doc.add_paragraph('')
         
         # Add scope items - sort by category number first
