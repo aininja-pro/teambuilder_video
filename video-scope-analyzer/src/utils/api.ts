@@ -1,4 +1,4 @@
-export const API_BASE_URL = typeof window !== 'undefined' && window.location.hostname !== 'localhost' 
+export const API_BASE_URL = process.env.NODE_ENV === 'production' 
   ? '' // Use same domain in production
   : 'http://localhost:8000' // Use localhost in development
 
