@@ -1,19 +1,38 @@
-// Always prefer same-origin in prod. In dev, set NEXT_PUBLIC_API_BASE=http://localhost:8000
-const BASE = process.env.NEXT_PUBLIC_API_BASE ?? "";
+// src/utils/api.ts
+// In prod (Next build), this is empty => same-origin.
+// In dev, set NEXT_PUBLIC_API_BASE=http://localhost:8000 in .env.local.
+export const BASE = process.env.NEXT_PUBLIC_API_BASE ?? "";
 
-/** Build an API URL safely. Accepts "/api/..." or "api/..." */
+// Build an absolute URL for our API.
 export function apiUrl(path: string) {
   const p = path.startsWith("/") ? path : `/${path}`;
   return `${BASE}${p}`;
 }
 
-/** Thin wrapper so every fetch goes through one place */
+// Fetch wrapper used everywhere.
 export function apiFetch(path: string, init?: RequestInit) {
   return fetch(apiUrl(path), init);
 }
 
-// Keep for backward compatibility
-export const API_BASE_URL = BASE
+// WebSocket base that mirrors BASE or falls back to window.location.
+export function wsUrl(path: string) {
+  const isHttps = typeof window !== "undefined" && window.location.protocol === "https:";
+  const wsBase =
+    BASE
+      ? BASE.replace(/^http:/, "ws:").replace(/^https:/, "wss:")
+      : (isHttps ? "wss://" : "ws://") + (typeof window !== "undefined" ? window.location.host : "");
+  const p = path.startsWith("/") ? path : `/${path}`;
+  return `${wsBase}${p}`;
+}
+
+// --- PROD GUARD: explode loudly if localhost leaks into prod ---
+if (typeof window !== "undefined" && process.env.NODE_ENV === "production") {
+  if (BASE.includes("localhost")) {
+    // eslint-disable-next-line no-console
+    console.error("❌ NEXT_PUBLIC_API_BASE contains localhost in production:", BASE);
+    throw new Error("Invalid API base in production");
+  }
+}
 
 export interface UploadChunkResponse {
   session_id: string
@@ -24,90 +43,77 @@ export interface UploadChunkResponse {
   complete: boolean
 }
 
-export interface ProcessingUpdate {
-  type: 'processing_update' | 'completion' | 'error'
-  step?: string
-  progress?: number
+interface ProcessingUpdate {
+  type: string
+  pct: number
+  msg: string
   status?: string
-  result?: any
-  message?: string
 }
 
-export class ChunkedUploader {
-  private chunkSize = 1024 * 1024 // 1MB chunks
-  
-  async uploadFile(
-    file: File, 
-    onProgress: (progress: number, step: string) => void
-  ): Promise<string> {
-    try {
-      const chunks = this.createChunks(file)
-      const totalChunks = chunks.length
-      let sessionId = ''
+export async function uploadFileInChunks(
+  file: File, 
+  onProgress: (progress: number, message: string) => void
+): Promise<string> {
+  const CHUNK_SIZE = 5 * 1024 * 1024 // 5MB chunks
+  const totalChunks = Math.ceil(file.size / CHUNK_SIZE)
+  let sessionId: string | undefined
+
+  try {
+    onProgress(0, 'Preparing upload...')
+    
+    // Upload chunks
+    for (let i = 0; i < totalChunks; i++) {
+      const start = i * CHUNK_SIZE
+      const end = Math.min(start + CHUNK_SIZE, file.size)
+      const chunk = file.slice(start, end)
       
-      onProgress(0, 'Preparing upload...')
+      const formData = new FormData()
       
-      // Upload chunks
-      for (let i = 0; i < chunks.length; i++) {
-        const chunk = chunks[i]
-        const formData = new FormData()
-        
-        formData.append('chunk', chunk)
-        formData.append('chunk_index', i.toString())
-        formData.append('total_chunks', totalChunks.toString())
-        formData.append('filename', file.name)
-        
-        if (sessionId) {
-          formData.append('session_id', sessionId)
-        }
-        
-        const response = await apiFetch("/api/upload/chunk", {
-          method: 'POST',
-          body: formData
-        })
-        
-        if (!response.ok) {
-          throw new Error(`Chunk upload failed: ${response.statusText}`)
-        }
-        
-        const result: UploadChunkResponse = await response.json()
-        sessionId = result.session_id
-        
-        const progress = Math.round((result.received_chunks / result.total_chunks) * 50) // 50% for upload
-        onProgress(progress, `Uploading... (${result.received_chunks}/${result.total_chunks} chunks)`)
+      formData.append('chunk', chunk)
+      formData.append('chunk_index', i.toString())
+      formData.append('total_chunks', totalChunks.toString())
+      formData.append('filename', file.name)
+      
+      if (sessionId) {
+        formData.append('session_id', sessionId)
       }
       
-      // Complete upload and start processing
-      const completeResponse = await apiFetch(`/api/upload/complete/${sessionId}`, {
-        method: 'POST'
+      const response = await apiFetch("/api/upload/chunk", {
+        method: 'POST',
+        body: formData
       })
       
-      if (!completeResponse.ok) {
-        throw new Error(`Upload completion failed: ${completeResponse.statusText}`)
+      if (!response.ok) {
+        throw new Error(`Chunk upload failed: ${response.statusText}`)
       }
       
-      onProgress(50, 'Upload complete. Starting processing...')
+      const result: UploadChunkResponse = await response.json()
+      sessionId = result.session_id
       
-      return sessionId
-      
-    } catch (error) {
-      console.error('Upload failed:', error)
-      throw error
-    }
-  }
-  
-  private createChunks(file: File): Blob[] {
-    const chunks: Blob[] = []
-    let start = 0
-    
-    while (start < file.size) {
-      const end = Math.min(start + this.chunkSize, file.size)
-      chunks.push(file.slice(start, end))
-      start = end
+      const progress = Math.round((result.received_chunks / result.total_chunks) * 50) // 50% for upload
+      onProgress(progress, `Uploading... (${result.received_chunks}/${result.total_chunks} chunks)`)
     }
     
-    return chunks
+    // Complete upload and start processing
+    const completeResponse = await apiFetch(`/api/upload/complete/${sessionId}`, {
+      method: 'POST'
+    })
+    
+    if (!completeResponse.ok) {
+      throw new Error(`Upload completion failed: ${completeResponse.statusText}`)
+    }
+    
+    const completeResult = await completeResponse.json()
+    onProgress(50, 'Upload complete, starting processing...')
+    
+    return sessionId!
+  } catch (error) {
+    throw new Error(`Upload failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
   }
+}
+
+export class ProcessingStatusManager {
+  private ws: WebSocket | null = null
   
   connectWebSocket(
     sessionId: string, 
@@ -115,10 +121,7 @@ export class ChunkedUploader {
     onComplete: (result: any) => void,
     onError: (error: string) => void
   ): WebSocket {
-    const protocol = typeof window !== 'undefined' && window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const host = typeof window !== 'undefined' ? window.location.host : 'localhost:8000'
-    const wsUrl = BASE ? `${protocol}//${BASE.replace(/^https?:\/\//, '')}/ws/${sessionId}` : `${protocol}//${host}/ws/${sessionId}`
-    const ws = new WebSocket(wsUrl)
+    const ws = new WebSocket(wsUrl(`/ws/${sessionId}`))
     
     ws.onopen = () => {
       console.log('WebSocket connected for session:', sessionId)
@@ -126,26 +129,14 @@ export class ChunkedUploader {
     
     ws.onmessage = (event) => {
       try {
-        console.log('WebSocket message received:', event.data)
-        const update: ProcessingUpdate = JSON.parse(event.data)
+        const update = JSON.parse(event.data)
+        console.log('WebSocket message:', update)
         
-        // Handle ChatGPT's Redis pub/sub message format
-        if ((update as any).type === 'progress') {
-          const pct = Number((update as any).pct || 0)
-          const msg = (update as any).msg as string || ''
-          const status = (update as any).status || 'processing'
-          
-          console.log(`Progress update: ${pct}%, ${msg}, status: ${status}`)
-          
-          onUpdate({
-            type: 'processing_update',
-            progress: pct,
-            status: status,
-            step: msg
-          })
+        if (update.type === 'progress') {
+          onUpdate(update)
           
           // Check if completed and fetch final result
-          if (pct >= 100 && status === 'completed') {
+          if (update.pct >= 100 && update.status === 'completed') {
             console.log('Job completed, fetching final result for session:', sessionId)
             // Fetch final result from Redis
             apiFetch(`/api/jobs/${sessionId}`)
@@ -153,54 +144,59 @@ export class ChunkedUploader {
               .then(data => {
                 console.log('Final result data:', data)
                 if (data.result) {
-                  const result = JSON.parse(data.result)
-                  console.log('Parsed result:', result)
-                  onComplete(result)
+                  try {
+                    const result = typeof data.result === 'string' ? JSON.parse(data.result) : data.result
+                    console.log('Parsed result:', result)
+                    onComplete(result)
+                  } catch (e) {
+                    console.error('Error parsing result:', e)
+                    onError('Failed to parse processing result')
+                  }
+                } else {
+                  onError('No result data available')
                 }
               })
               .catch(err => {
-                console.error('Failed to fetch final result:', err)
-                onError('Failed to fetch final result')
+                console.error('Error fetching final result:', err)
+                onError('Failed to fetch processing result')
               })
           }
-          return
+        } else if (update.type === 'snapshot' && update.status === 'completed') {
+          // Handle initial snapshot if already completed
+          console.log('Received completed snapshot, fetching result')
+          onComplete(update)
         }
+      } catch (e) {
+        console.error('WebSocket message parse error:', e)
+        onError('Failed to parse progress update')
+      }
+    }
+    
+    ws.onclose = (event) => {
+      console.log('WebSocket closed:', event.code, event.reason)
+      if (event.code !== 1000) { // Not normal closure
+        onError('Connection lost. Refreshing to check status...')
         
-        // Handle snapshot messages
-        if ((update as any).type === 'snapshot') {
-          const pct = Number((update as any).pct || 0)
-          const msg = (update as any).msg as string || ''
-          const status = (update as any).status || 'processing'
-          
-          if (pct >= 100 && status === 'completed' && (update as any).result) {
-            const result = JSON.parse((update as any).result)
-            onComplete(result)
-          } else {
-            onUpdate({
-              type: 'processing_update',
-              progress: pct,
-              status: status,
-              step: msg
+        // Fallback: poll for completion
+        const pollInterval = setInterval(() => {
+          apiFetch(`/api/jobs/${sessionId}`)
+            .then(res => res.json())
+            .then(data => {
+              if (data.status === 'completed') {
+                clearInterval(pollInterval)
+                if (data.result) {
+                  const result = typeof data.result === 'string' ? JSON.parse(data.result) : data.result
+                  onComplete(result)
+                }
+              }
             })
-          }
-          return
-        }
-
-        switch (update.type) {
-          case 'processing_update':
-            onUpdate(update)
-            break
-          case 'completion':
-            onComplete(update.result)
-            break
-          case 'error':
-            onError(update.message || 'Processing failed')
-            break
-          default:
-            console.log('WebSocket message:', update)
-        }
-      } catch (error) {
-        console.error('Failed to parse WebSocket message:', error)
+            .catch(() => {
+              // Continue polling
+            })
+        }, 2000)
+        
+        // Stop polling after 5 minutes
+        setTimeout(() => clearInterval(pollInterval), 300000)
       }
     }
     
@@ -209,12 +205,14 @@ export class ChunkedUploader {
       onError('Connection error')
     }
     
-    ws.onclose = () => {
-      console.log('WebSocket disconnected')
-    }
-    
+    this.ws = ws
     return ws
   }
+  
+  disconnect() {
+    if (this.ws) {
+      this.ws.close(1000)
+      this.ws = null
+    }
+  }
 }
-
-export const uploader = new ChunkedUploader()

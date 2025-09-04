@@ -9,7 +9,7 @@ import ProjectSummary from '@/components/ProjectSummary'
 import DocumentDownload from '@/components/DocumentDownload'
 import SavedAnalyses from '@/components/SavedAnalyses'
 import Header from '@/components/Header'
-import { uploader, API_BASE_URL } from '@/utils/api'
+import { uploader, apiUrl } from '@/utils/api'
 
 interface ScopeItem {
   mainCode: string
@@ -147,8 +147,8 @@ export default function Home() {
           setScopeItems(sortedScopeItems)
           setProjectSummary(result.project_summary || null)
           setDocuments({
-            docx: result.documents?.docx ? `${API_BASE_URL}${result.documents.docx}` : null,
-            pdf: result.documents?.pdf ? `${API_BASE_URL}${result.documents.pdf}` : null
+            docx: result.documents?.docx ? apiUrl(result.documents.docx) : null,
+            pdf: result.documents?.pdf ? apiUrl(result.documents.pdf) : null
           })
           setProcessingStep('Processing complete!')
           setProcessingProgress(100)
