@@ -114,7 +114,7 @@ export async function uploadFileInChunks(
 
 // Export for backward compatibility
 export const uploader = {
-  uploadFileInChunks
+  uploadFile: uploadFileInChunks
 }
 
 export class ProcessingStatusManager {
