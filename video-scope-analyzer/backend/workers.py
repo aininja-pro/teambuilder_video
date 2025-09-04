@@ -341,8 +341,8 @@ Return ONLY valid JSON.
                 
                 doc.add_paragraph('')  # spacing
         
-        # Save DOCX
-        static_dir = "/Users/richardrierson/Desktop/Projects/TeamBuilders/video-scope-analyzer/backend/static"
+        # Save DOCX  
+        static_dir = os.path.join(os.path.dirname(__file__), "static")
         os.makedirs(static_dir, exist_ok=True)
         
         docx_filename = f"{session_id}_scope_summary.docx"
