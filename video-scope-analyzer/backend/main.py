@@ -267,10 +267,16 @@ app.include_router(upload_router)
 # Include other API routes  
 app.include_router(api_router)
 
-# ---------- Static site (mount AFTER API) ----------
-FRONTEND_DIR = Path(__file__).parent / "static"
-if FRONTEND_DIR.exists():
-    app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="frontend")
+# ---------- Static files (mount AFTER API) ----------
+STATIC_DIR = Path(__file__).parent / "static"
+
+# Mount documents at /static/ path (for generated documents)
+if STATIC_DIR.exists():
+    app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="documents")
+
+# Mount frontend at root (for React app)
+if STATIC_DIR.exists():
+    app.mount("/", StaticFiles(directory=str(STATIC_DIR), html=True), name="frontend")
 
 if __name__ == "__main__":
     import uvicorn
