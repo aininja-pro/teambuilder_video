@@ -12,6 +12,9 @@ export function apiFetch(path: string, init?: RequestInit) {
   return fetch(apiUrl(path), init);
 }
 
+// Keep for backward compatibility
+export const API_BASE_URL = BASE
+
 export interface UploadChunkResponse {
   session_id: string
   chunk_index: number
