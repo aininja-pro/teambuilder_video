@@ -47,6 +47,8 @@ interface ProcessingUpdate {
   type: string
   pct: number
   msg: string
+  step?: string
+  progress?: number
   status?: string
 }
 
