@@ -23,8 +23,8 @@ export default function Header({ onProjectsClick, onAnalyzeVideoClick }: HeaderP
             </Link>
           </div>
 
-          {/* Centered Title */}
-          <div className="absolute left-1/2 transform -translate-x-1/2">
+          {/* Centered Title - Hidden on mobile to prevent overlap with logo */}
+          <div className="hidden md:block absolute left-1/2 transform -translate-x-1/2">
             <h1 className="text-xl font-bold text-white">Video Scope Analyzer</h1>
           </div>
 
